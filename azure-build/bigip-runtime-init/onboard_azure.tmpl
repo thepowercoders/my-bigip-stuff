@@ -1,0 +1,106 @@
+#!/bin/bash -x
+# NOTE: Startup Script is run once / initialization only (assuming use of cloud-init)
+# Version - AZURE using BLOB storage for packages
+
+# Terraform replaceable parameters are as follows:
+#${AZURE_BLOB} - this is the blob where the packages and declarations are held
+#${INIT_FILE} - this is the filename of the bigip-runtime-init rpm
+#${LICENSE_KEY} - this is a valid F5 licence key which allows the device to licence itself (via activate.f5.com)
+#${DO_FILE} - this is the filename of the declarative onboarding rpm
+#${AS3_FILE} - this is the filename of the AS3 rpm
+#${TS_FILE} - this is the filename of the telemetry streaming rpm
+#${DO_DEC_FILE} - this is the filename of the DO statement containing initial box config
+#${MSI_OID} - this is the object ID of the Managed Service Identity used for the VM to access Azure storage
+
+### create_dirs:
+# for logging, storing runtime-init yaml config, and bigip packages (respectively):
+mkdir -p  /var/log/cloud /config/cloud /var/config/rest/downloads
+
+### setup_logging:
+npipe=/tmp/$$.tmp
+trap "rm -f $npipe" EXIT
+mknod $npipe p
+tee <$npipe -a $LOG_FILE /dev/ttyS0 &
+exec 1>&-
+exec 1>$npipe
+exec 2>&1
+
+### pull runtime-init:
+# we need to call a token to access blob storage and pull the file
+# Note: this requires the VM to have an Azure MSI with at least 'Storage Blob Data Reader' RBAC on the blob:
+INIT_FILE="${INIT_FILE}"
+PACKAGE_URL="${AZURE_BLOB}"/"$INIT_FILE"
+token=$(curl -s "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F&object_id=${MSI_OID}" -H Metadata:true)
+
+# Check and exit if we failed to get a token. If we have one, extract the token hex string from the response.
+[ -z "$token" ] && { echo "Failed to get Azure Token. Exiting"; exit; } || access_key=$(echo $token | grep -o '"access_token":"[^"]*' | grep -o '[^"]*$')
+
+for i in {1..30}; do
+  echo "trying to download $INIT_FILE (Attempt $i of 30)"
+  curl -s --retry 1 --connect-timeout 5 -L $PACKAGE_URL -H "x-ms-version:2017-11-09" -H "Authorization: Bearer $access_key" -o "/var/config/rest/downloads/$INIT_FILE" && break || sleep 10
+done
+
+# Check and exit if we failed to get the file.
+[[ ! -s /var/config/rest/downloads/$INIT_FILE ]] && { echo "Failed to download bigip-runtime-init. Exiting"; exit; }
+
+### write_files:
+# Download or Render BIG-IP Runtime Init Config 
+cat << 'EOF' > /config/cloud/runtime-init-conf.yaml
+---
+controls:
+  logLevel: silly
+  logFilename: /var/log/cloud/bigIpRuntimeInit.log
+runtime_parameters:
+  - name: ACCESS_TOKEN
+    type: url
+    query: access_token
+    value: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F&object_id=${MSI_OID}'
+    headers:
+      - name: Metadata
+        value: true
+      - name: x-ms-version
+        value: '2017-11-09'
+pre_onboard_enabled:
+  - name: provision_rest
+    type: inline
+    commands:
+      - /usr/bin/setdb provision.extramb 500
+      - /usr/bin/setdb restjavad.useextramb true
+      - /usr/bin/setdb setup.run false
+  - name: license_device
+    type: inline
+    commands:
+      - /usr/bin/tmsh install /sys license registration-key ${LICENSE_KEY}
+bigip_ready_enabled:
+  - name: download_packages
+    type: inline
+    commands:
+      - 'curl ${AZURE_BLOB}/${DO_FILE} -o /var/config/rest/downloads/${DO_FILE} -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+      - 'curl ${AZURE_BLOB}/${AS3_FILE} -o /var/config/rest/downloads/${AS3_FILE} -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+      - 'curl ${AZURE_BLOB}/${TS_FILE} -o /var/config/rest/downloads/${TS_FILE} -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+  - name: download_do_statement
+    type: inline
+    commands:
+      - 'curl ${AZURE_BLOB}/${DO_DEC_FILE} -o /config/cloud/do_w_admin.json -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+extension_packages:
+  install_operations:
+    - extensionType: do
+      extensionUrl: file:///var/config/rest/downloads/${DO_FILE}
+    - extensionType: as3
+      extensionUrl: file:///var/config/rest/downloads/${AS3_FILE} 
+    - extensionType: ts
+      extensionUrl: file:///var/config/rest/downloads/${TS_FILE}
+extension_services:
+  service_operations:
+    - extensionType: do
+      type: url
+      value: file:///config/cloud/do_w_admin.json
+post_onboard_enabled: []
+EOF
+
+### format:
+/bin/sed -i 's/\r//' /config/cloud/runtime-init-conf.yaml
+### install:
+bash /var/config/rest/downloads/${INIT_FILE} -- '--cloud azure'
+### run:
+f5-bigip-runtime-init --config-file /config/cloud/runtime-init-conf.yaml
