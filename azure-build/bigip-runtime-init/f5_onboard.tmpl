@@ -1,0 +1,99 @@
+#!/bin/bash -x
+# NOTE: Startup Script is run once / initialization only (Cloud-Init behavior vs. typical re-entrant for Azure Custom Script Extension )
+# For 15.1+ and above, Cloud-Init will run the script directly and we can remove Azure Custom Script Extension 
+
+# create required directories for logging, storing runtime-init yaml config, and bigip packages (respectively):
+mkdir -p  /var/log/cloud /config/cloud /var/config/rest/downloads
+
+# The script should only be run once so we exit if we find a logfile (just in case CSE is still being used):
+LOG_FILE=/var/log/cloud/startup-script.log
+[[ ! -f $LOG_FILE ]] && touch $LOG_FILE || { echo "Run Only Once. Exiting"; exit; }
+
+# setup a pipe to log commands and results:
+npipe=/tmp/$$.tmp
+trap "rm -f $npipe" EXIT
+mknod $npipe p
+tee <$npipe -a $LOG_FILE /dev/ttyS0 &
+exec 1>&-
+exec 1>$npipe
+exec 2>&1
+
+# Pre-install files (device licence and onboard DO declaration) are stored in Azure blob and we need to call a token to access storage and pull the file
+# Note: this assumes the VM already has an Azure MSI assigned:
+token=$(curl -s "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F&object_id=${object_id}" -H Metadata:true)
+
+# Check and exit if we failed to get a token. If we got one, extract the token hex string from the response.
+[ -z "$token" ] && { echo "Failed to get Azure Token. Exiting"; exit; } || access_key=$(echo $token | grep -o '"access_token":"[^"]*' | grep -o '[^"]*$')
+
+# download onboarding script
+# Note: this assumes the VM MSI has at least reader RBAC access rights to the storage blob:
+azureBlobURL='${onboard_url}'
+onboard_url="$azureBlobURL"/'${onboard_file}' 
+curl -o /config/cloud/do_w_admin.json -sS --fail --retry 60 -m 10 -L "$onboard_url" -H "x-ms-version:2017-11-09" -H "Authorization: Bearer $access_key" 2> /config/cloud/do_w_admin.err
+[[ ! -s /config/cloud/do_w_admin.json ]] && { echo "Failed to download DO statement - check /config/cloud/do_w_admin.err. Exiting"; exit; }
+
+### write_files:
+# Download or Render BIG-IP Runtime Init Config 
+cat << 'EOF' > /config/cloud/runtime-init-conf.yaml
+---
+controls:
+  logLevel: silly
+  logFilename: /var/log/cloud/bigIpRuntimeInit.log
+runtime_parameters:
+  - name: ACCESS_TOKEN
+    type: url
+    query: access_token
+    value: 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F&object_id=${object_id}'
+    headers:
+      - name: Metadata
+        value: true
+      - name: x-ms-version
+        value: '2017-11-09'
+pre_onboard_enabled:
+  - name: provision_rest
+    type: inline
+    commands:
+      - /usr/bin/setdb provision.extramb 500
+      - /usr/bin/setdb restjavad.useextramb true
+      - /usr/bin/setdb setup.run false
+  - name: license_device
+    type: inline
+    commands:
+      - /usr/bin/tmsh install /sys license registration-key ${LICENSE_KEY}
+bigip_ready_enabled:
+  - name: download_packages
+    type: inline
+    commands:
+      - 'curl ${onboard_url}/${DO_URL} -o /var/config/rest/downloads/${DO_URL} -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+      - 'curl ${onboard_url}/${AS3_URL} -o /var/config/rest/downloads/${AS3_URL} -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+      - 'curl ${onboard_url}/${TS_URL} -o /var/config/rest/downloads/${TS_URL} -H "x-ms-version:2017-11-09" -H "Authorization: Bearer {{{ACCESS_TOKEN}}}"'
+extension_packages:
+  install_operations:
+    - extensionType: ts
+      extensionUrl: file:///var/config/rest/downloads/${TS_URL}
+    - extensionType: do
+      extensionUrl: file:///var/config/rest/downloads/${DO_URL}
+    - extensionType: as3
+      extensionUrl: file:///var/config/rest/downloads/${AS3_URL} 
+extension_services:
+  service_operations:
+    - extensionType: do
+      type: url
+      value: file:///config/cloud/do_w_admin.json
+post_onboard_enabled: []
+EOF
+
+## Check to remove any CRs in the config file:
+/bin/sed -i 's/\r//' /config/cloud/runtime-init-conf.yaml
+
+### Download
+PACKAGE_URL="${onboard_url}"/"${INIT_URL}"
+for i in {1..30}; do
+    curl -s --retry 1 --connect-timeout 5 -L $PACKAGE_URL -H "x-ms-version:2017-11-09" -H "Authorization: Bearer $access_key" -o "/var/config/rest/downloads/${INIT_URL}" && break || sleep 10
+done
+
+### Install
+bash /var/config/rest/downloads/${INIT_URL} -- '--cloud azure'
+
+### Run
+f5-bigip-runtime-init --config-file /config/cloud/runtime-init-conf.yaml
