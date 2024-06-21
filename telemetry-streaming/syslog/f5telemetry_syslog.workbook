@@ -1,0 +1,669 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "<h1><img src=\"https://www.f5.com/content/dam/f5/f5-logo.svg\" alt=\"F5 logo\" width=\"50\" height=\"60\" />\n&nbsp; F5 BIG-IP Syslog Logging</h1>\n\n---\n\nThe following workbook displays syslog messages for Azure BIG-IP VE devices running Remote Logging to Azure Log Analytics. Information is displayed to provide a method of viewing BIG-IP logs across multiple devices reporting into Azure, without having to access the tmsh or Advanced Shell of the device.\n\n---"
+      },
+      "name": "text - 2"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "value::selected"
+        ],
+        "parameters": [
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "DefaultSubscription_Internal",
+            "type": 1,
+            "isRequired": true,
+            "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| take 1\r\n| project subscriptionId",
+            "crossComponentResources": [
+              "value::selected"
+            ],
+            "isHiddenWhenLocked": true,
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "Subscription",
+            "type": 6,
+            "isRequired": true,
+            "query": "summarize by subscriptionId\r\n| project value = strcat(\"/subscriptions/\", subscriptionId), label = subscriptionId, selected = iff(subscriptionId =~ '{DefaultSubscription_Internal}', true, false)\r\n",
+            "crossComponentResources": [
+              "value::selected"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "Workspace",
+            "type": 5,
+            "isRequired": true,
+            "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| project id",
+            "crossComponentResources": [
+              "{Subscription}"
+            ],
+            "value": null,
+            "typeSettings": {
+              "resourceTypeFilter": {
+                "microsoft.operationalinsights/workspaces": true
+              },
+              "additionalResourceOptions": [
+                "value::1"
+              ]
+            },
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "parmTimePeriod",
+            "label": "Time Period",
+            "type": 4,
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 300000
+                },
+                {
+                  "durationMs": 900000
+                },
+                {
+                  "durationMs": 1800000
+                },
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 14400000
+                },
+                {
+                  "durationMs": 43200000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 172800000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2419200000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 5184000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ]
+            },
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "value": {
+              "durationMs": 900000
+            }
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "parmDevice",
+            "label": "BIG-IP Device",
+            "type": 2,
+            "query": "F5Telemetry_syslog_CL\r\n| distinct tostring(split(hostname_s, \".\")[0]) ",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "timeContext": {
+              "durationMs": 0
+            },
+            "timeContextFromParameter": "parmTimePeriod",
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": null
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "F5Telemetry_syslog_CLMissing",
+            "type": 1,
+            "query": "let MissingTable = view () { print isMissing=1 };\r\nunion isfuzzy=true MissingTable, (F5Telemetry_syslog_CL | getschema | summarize c=count() | project isMissing=iff(c > 0, 0, 1)) \r\n| top 1 by isMissing asc",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "isHiddenWhenLocked": true,
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        ],
+        "style": "pills",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources"
+      },
+      "customWidth": "75",
+      "name": "parmHeader"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Missing metrics table\r\n\r\nThe table `F5Telemetry_syslog_CL` is not found in the selected Workspace.\r\n\r\nTo visualize the metrics you need to [set up big-ip Telemetry Streaming application to send metrics and logs to your Log Analytics workspace](https://clouddocs.f5.com/products/extensions/f5-telemetry-streaming/latest/event-listener.html).",
+        "style": "upsell"
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isEqualTo",
+        "value": "1"
+      },
+      "name": "No F5Telemetry_syslog_CL table"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let parmDevice = iff(\"{parmDevice}\" == \"\", \"null\", \"{parmDevice}\");\r\nF5Telemetry_syslog_CL\r\n| where parmDevice == \"null\" or tostring(split(hostname_s, \".\")[0]) has_any(parmDevice)\r\n| summarize count() by hostname_s\r\n| order by count_ desc\r\n",
+        "size": 0,
+        "title": "Collected syslog per Device",
+        "timeContextFromParameter": "parmTimePeriod",
+        "exportMultipleValues": true,
+        "exportedParameters": [
+          {
+            "fieldName": "",
+            "parameterName": "parmProcess",
+            "parameterType": 1
+          }
+        ],
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "piechart",
+        "tileSettings": {
+          "showBorder": false,
+          "titleContent": {
+            "columnMatch": "severity_s",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "count_",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        },
+        "graphSettings": {
+          "type": 2,
+          "topContent": {
+            "columnMatch": "processName_s",
+            "formatter": 1
+          },
+          "centerContent": {
+            "columnMatch": "count_",
+            "formatter": 1,
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "nodeIdField": "processName_s",
+          "graphOrientation": 3,
+          "showOrientationToggles": false,
+          "nodeSize": null,
+          "staticNodeSize": 100,
+          "colorSettings": null,
+          "hivesMargin": 5,
+          "edgeColorSettings": null
+        },
+        "mapSettings": {
+          "locInfo": "LatLong",
+          "sizeSettings": "count_",
+          "sizeAggregation": "Sum",
+          "legendMetric": "count_",
+          "legendAggregation": "Sum",
+          "itemColorSettings": {
+            "type": "heatmap",
+            "colorAggregation": "Sum",
+            "nodeColorField": "count_",
+            "heatmapPalette": "greenRed"
+          }
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "customWidth": "50",
+      "name": "queryDevices",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let parmDevice = iff(\"{parmDevice}\" == \"\", \"null\", \"{parmDevice}\");\r\nF5Telemetry_syslog_CL\r\n| where parmDevice == \"null\" or tostring(split(hostname_s, \".\")[0]) has_any(parmDevice)\r\n| extend processName = extract(@'([\\w-]+)\\[\\d+\\]:', 1, data_s)\r\n| extend processName_s = replace_regex(processName, @'tmm(\\d+)', @'tmm')\r\n| summarize count() by processName_s\r\n| order by count_ desc\r\n",
+        "size": 0,
+        "title": "Syslog totals per System Daemon",
+        "timeContextFromParameter": "parmTimePeriod",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "barchart",
+        "tileSettings": {
+          "showBorder": false,
+          "titleContent": {
+            "columnMatch": "severity_s",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "count_",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        },
+        "graphSettings": {
+          "type": 2,
+          "topContent": {
+            "columnMatch": "processName_s",
+            "formatter": 1
+          },
+          "centerContent": {
+            "columnMatch": "count_",
+            "formatter": 1,
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "nodeIdField": "processName_s",
+          "graphOrientation": 3,
+          "showOrientationToggles": false,
+          "nodeSize": null,
+          "staticNodeSize": 100,
+          "colorSettings": null,
+          "hivesMargin": 5,
+          "edgeColorSettings": null
+        },
+        "chartSettings": {
+          "showLegend": true,
+          "xSettings": {
+            "label": "Process"
+          }
+        },
+        "mapSettings": {
+          "locInfo": "LatLong",
+          "sizeSettings": "count_",
+          "sizeAggregation": "Sum",
+          "legendMetric": "count_",
+          "legendAggregation": "Sum",
+          "itemColorSettings": {
+            "type": "heatmap",
+            "colorAggregation": "Sum",
+            "nodeColorField": "count_",
+            "heatmapPalette": "greenRed"
+          }
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "customWidth": "50",
+      "name": "queryProcess",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let parmDevice = iff(\"{parmDevice}\" == \"\", \"null\", \"{parmDevice}\");\r\nF5Telemetry_syslog_CL\r\n| where parmDevice == \"null\" or tostring(split(hostname_s, \".\")[0]) has_any(parmDevice)\r\n| extend processName = extract(@'([\\w-]+)\\[\\d+\\]:', 1, data_s)\r\n| extend processName_s = replace_regex(processName, @'tmm(\\d+)', @'tmm')\r\n| summarize count() by TimeGenerated, hostname_s\r\n| order by count_ desc\r\n",
+        "size": 0,
+        "aggregation": 2,
+        "title": "Syslog Logging Rate",
+        "timeContextFromParameter": "parmTimePeriod",
+        "timeBrushParameterName": "parmTimeBrush",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "timechart"
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "name": "query - 8"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "If you want to zoom in on a specific time within the reporting period you have selected, you can use the brush on the time graph above to select a period to focus - the log counts, severity counts and syslog log table below will all update accordingly. ",
+        "style": "info"
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "name": "text - 9"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ProcessDb = datatable(Key:string, processDescription:string)\r\n[\r\n\"tmsh\", \"TMoS Shell\",\r\n\"logger\", \"bigstart logger\",\r\n\"alertd\", \"Alert Daemon\",\r\n\"autodosd\", \"AFM DoS Auto\",\r\n\"avrd\", \"AVR Reporting Process\",\r\n\"bdosd\", \"Behavioural DoS\",\r\n\"bigd\", \"BIGD Monitor\",\r\n\"big3d\", \"BIG3D iQuery\",\r\n\"cbrd\", \"XML Routing\",\r\n\"chmand\", \"Chassis Manager\",\r\n\"clusterd\", \"Clusterd Process\",\r\n\"crond\", \"Cron Daemon\",\r\n\"csyncd\", \"SW Image Sync\",\r\n\"devmgmtd\", \"Device Management\",\r\n\"dwbld\", \"Dynamic\",\r\n\"dynconfd\", \"Dynconfd Process\",\r\n\"errdefsd\", \"Errdefsd\",\r\n\"eventd\", \"Eventd Process\",\r\n\"evrouted\", \"Evrouted Process\",\r\n\"gtmd\", \"Global Traffic Manager\",\r\n\"httpd\", \"Http Daemon\",\r\n\"icrd_child\", \"iControl REST\",\r\n\"icr_eventd\", \"Config Event Monitor\",\r\n\"iprepd\", \"IP Intelligence\",\r\n\"keymgmtd\", \"CA Key Management\",\r\n\"lacpd\", \"802.3ad LACP control\",\r\n\"lind\", \"SW Installation Proces\",\r\n\"lldpd\", \"LLDP Manager\",\r\n\"logstatd\", \"Log Stat Process\",\r\n\"mcpd\", \"TMM Master Control\",\r\n\"merged\", \"Stats Daemon\",\r\n\"mgmt_acld\", \"Stats Daemon\",\r\n\"monpd\", \"AVR Reporting Process\",\r\n\"named\", \"NameD Process\",\r\n\"nslcd\", \"NSLCD LDAP Manager\",\r\n\"ntlmconnpool\", \"NTLM Manager\",\r\n\"ntpd\", \"Ntp Daemon\",\r\n\"overdog\", \"Overdog Failover Manager\",\r\n\"pccd\", \"AFM Config Manager\",\r\n\"pgadmind\", \"PostgreSQL AFM Manager\",\r\n\"pkcs11d\", \"PKSC11D Manager\",\r\n\"racoon\", \"Racoon IPSec Daemon\",\r\n\"restjavad\", \"REST Java Daemon\",\r\n\"restnoded\", \"REST Node Daemon\",\r\n\"scriptd\", \"Application Script Mgr\",\r\n\"sflow_agent\", \"SNMP Subagent\",\r\n\"snmpd\", \"SNMP Daemon\",\r\n\"sod\", \"HA Failover Manager\",\r\n\"sshd\", \"SSH Daemon\",\r\n\"statsd\", \"Stats Daemon\",\r\n\"syscalld\", \"Syscall Daemon\",\r\n\"syslog-ng\", \"Syslog-NG Manager\",\r\n\"tamd\", \"Traffic Auth Manager\",\r\n\"tmipsecd\", \"IPSec Daemon\",\r\n\"tmm\", \"LTM/GTM Traffic Manager\",\r\n\"tmrouted\", \"Routing Table Manager\",\r\n\"tomcat\", \"Tomcat Daemon\",\r\n\"vxland\", \"Vxland Process\",\r\n\"zrd\", \"Zrd Process\",\r\n\"zxfrd\", \"Zxfrd Process\"\r\n];\r\n\r\nlet parmDevice = iff(\"{parmDevice}\" == \"\", \"null\", \"{parmDevice}\");\r\nlet ProcessedF5Telemetry = F5Telemetry_syslog_CL \r\n| where parmDevice == \"null\" or tostring(split(hostname_s, \".\")[0]) has_any(parmDevice)\r\n| where iff(isnotempty('{parmTimeBrush}'),TimeGenerated {parmTimeBrush},TimeGenerated {parmTimePeriod})\r\n| extend processName = extract(@'([\\w-]+)\\[\\d+\\]:', 1, data_s)\r\n| extend processName_s = replace_regex(processName, @'tmm(\\d+)', @'tmm');\r\nProcessedF5Telemetry\r\n| join kind=leftouter (\r\n    ProcessDb \r\n    | extend processName_s = Key\r\n) on processName_s\r\n| summarize count() by processName_s, processDescription\r\n| order by count_ desc",
+        "size": 1,
+        "title": "Count of syslog Messages per Process/Daemon",
+        "exportFieldName": "processName_s",
+        "exportParameterName": "parmProcess",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "processName_s",
+            "formatter": 1
+          },
+          "subtitleContent": {
+            "columnMatch": "processDescription",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "count_",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "customWidth": "50",
+      "name": "queryProcessCounts",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let parmDevice = iff(\"{parmDevice}\" == \"\", \"null\", \"{parmDevice}\");\r\nF5Telemetry_syslog_CL\r\n| where parmDevice == \"null\" or tostring(split(hostname_s, \".\")[0]) has_any(parmDevice)\r\n| where iff(isnotempty('{parmTimeBrush}'),TimeGenerated {parmTimeBrush},TimeGenerated {parmTimePeriod})\r\n| extend processName = extract(@'([\\w-]+)\\[\\d+\\]:', 1, data_s)\r\n| extend severity = extract(@'(\\w+)\\s[\\w-]+\\[\\d+\\]', 1, data_s)\r\n| extend severity_s = replace_strings(\r\n        severity,\r\n        dynamic(['err', 'emerg', 'alert', 'warning', 'crit']), // Lookup strings\r\n        dynamic(['Error', 'Emergency', 'Alert', 'Warning', 'CRITICAL']) // Replacements\r\n        )\r\n| summarize count() by severity_s\r\n| order by count_ desc\r\n",
+        "size": 1,
+        "title": "Count of syslog Messages per Severity",
+        "exportFieldName": "severity_s",
+        "exportParameterName": "parmSeverity",
+        "exportDefaultValue": "null",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "severity_s",
+            "formatter": 18,
+            "formatOptions": {
+              "thresholdsOptions": "icons",
+              "thresholdsGrid": [
+                {
+                  "operator": "==",
+                  "thresholdValue": "Error",
+                  "representation": "disabled",
+                  "text": "{0}{1}"
+                },
+                {
+                  "operator": "==",
+                  "thresholdValue": "Alert",
+                  "representation": "error",
+                  "text": "{0}{1}"
+                },
+                {
+                  "operator": "==",
+                  "thresholdValue": "Warning",
+                  "representation": "2",
+                  "text": "{0}{1}"
+                },
+                {
+                  "operator": "==",
+                  "thresholdValue": "Info",
+                  "representation": "1",
+                  "text": "{0}{1}"
+                },
+                {
+                  "operator": "==",
+                  "thresholdValue": "Emergency",
+                  "representation": "stopped",
+                  "text": "{0}{1}"
+                },
+                {
+                  "operator": "==",
+                  "thresholdValue": "CRITICAL",
+                  "representation": "4",
+                  "text": "{0}{1}"
+                },
+                {
+                  "operator": "Default",
+                  "thresholdValue": null,
+                  "representation": "unknown",
+                  "text": "{0}{1}"
+                }
+              ]
+            }
+          },
+          "leftContent": {
+            "columnMatch": "count_",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "showBorder": false
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "customWidth": "50",
+      "name": "querySeverity",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "Click on the log process name or severity tiles above to filter the syslog accordingly.",
+        "style": "info"
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "name": "text - 7"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let parmDevice = iff(\"{parmDevice}\" == \"\", \"null\", \"{parmDevice}\");\r\nF5Telemetry_syslog_CL\r\n| where parmDevice == \"null\" or tostring(split(hostname_s, \".\")[0]) has_any(parmDevice)\r\n| where iff(isnotempty('{parmTimeBrush}'),TimeGenerated {parmTimeBrush},TimeGenerated {parmTimePeriod})\r\n| extend processName = extract(@'([\\w-]+)\\[\\d+\\]:', 1, data_s)\r\n| where '{parmProcess}' == '' or '{parmProcess}' contains processName\r\n| extend message_s = extract(@'\\[\\d+\\]: (.*)', 1, data_s)\r\n| extend severity = extract(@'(\\w+)\\s[\\w-]+\\[\\d+\\]', 1, data_s)\r\n| where '{parmSeverity}' == 'null' or '{parmSeverity}' contains severity\r\n| extend severity_s = replace_strings(\r\n        severity,\r\n        dynamic(['err', 'emerg', 'crit']), // Lookup strings\r\n        dynamic(['error', 'emergency', 'critical']) // Replacements\r\n        )\r\n| project\r\n   TimeGenerated,\r\n   Severity = severity_s,\r\n   Process = processName,\r\n   ['Log Message'] = message_s,\r\n   Hostname = tostring(split(hostname_s, \".\")[0]) \r\n| order by TimeGenerated desc\r\n\r\n",
+        "size": 0,
+        "showAnalytics": true,
+        "showRefreshButton": true,
+        "showExportToExcel": true,
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "TimeGenerated",
+              "formatter": 0,
+              "formatOptions": {
+                "customColumnWidthSetting": "11%"
+              }
+            },
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "emergency",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "info",
+                    "representation": "gray",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "warning",
+                    "representation": "orange",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "alert",
+                    "representation": "turquoise",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "error",
+                    "representation": "red",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "critical",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": null,
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Log Message",
+              "formatter": 1,
+              "formatOptions": {
+                "customColumnWidthSetting": "60%"
+              }
+            }
+          ],
+          "rowLimit": 1000,
+          "filter": true
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_syslog_CLMissing",
+        "comparison": "isNotEqualTo",
+        "value": "1"
+      },
+      "name": "querySyslog"
+    }
+  ],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
