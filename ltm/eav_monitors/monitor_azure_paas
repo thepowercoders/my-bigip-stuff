@@ -1,0 +1,170 @@
+#!/bin/bash
+# Using the Azure VM Instance Metadata Service (IMDS) and given a resource in Azure, this script can check 
+# health of a PaaS service based on it's Availability status.
+#
+# thepowercoders.com - May 2025
+# 
+# MANDATORY VARIABLES:
+#
+# VM_MSI_OID - the object ID of the Virtual Machine's **USER ASSIGNED** Managed Service Identity.
+# SUBSCRIPTION - the subscription which the Azure PaaS service is provisioned within.
+# RESOURCE_GROUP - the resource group which the Azure PaaS service is provisioned within.
+# PROVIDER - one of the script's supported PaaS provider resources, which is either 'storage','cosmos' or 'sqlserver'.
+# RESOURCE_NAME - the actual name of the resource you want to check.
+# (optional) SUBRESOURCE_NAME - for some resources, a sub-resource may need to be checked within the PaaS service.
+#
+if ! [ -n "$VM_MSI_OID" ]
+then
+   echo "EAV `basename $0`: Missing mandatory parameter VM_MSI_OID" | logger -p local0.debug
+   exit 1
+elif ! [ -n "$SUBSCRIPTION" ]
+then
+   echo "EAV `basename $0`: Missing mandatory parameter SUBSCRIPTION" | logger -p local0.debug
+   exit 1
+elif ! [ -n "$RESOURCE_GROUP" ]
+then
+   echo "EAV `basename $0`: Missing mandatory parameter RESOURCE_GROUP" | logger -p local0.debug
+   exit 1
+elif ! [ -n "$PROVIDER" ]
+then
+   echo "EAV `basename $0`: Missing mandatory parameter PROVIDER" | logger -p local0.debug
+   exit 1
+elif ! [ -n "$RESOURCE_NAME" ]
+then
+   echo "EAV `basename $0`: Missing mandatory parameter RESOURCE_NAME" | logger -p local0.debug
+   exit 1
+fi
+
+# Standard Azure Variables for the Instance Metadata Service:
+IMDS_IP="169.254.169.254"
+IMDS_ENDPOINT="metadata/instance?api-version=2018-02-01&format=text"
+TOKEN_ENDPOINT="metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F&object_id=$VM_MSI_OID"
+TEST_URI="http://$IMDS_IP/$IMDS_ENDPOINT"
+GET_URI="http://$IMDS_IP/$TOKEN_ENDPOINT"
+
+# Resource Paths:
+MGMT_URI="https://management.azure.com/subscriptions/$SUBSCRIPTION/resourceGroups/$RESOURCE_GROUP/providers"
+HEALTH_EP="providers/Microsoft.ResourceHealth/availabilityStatuses/current?api-version=2024-02-01"
+case "$PROVIDER" in
+   "storage")
+      AZ_RESOURCE_HEALTH="$MGMT_URI/Microsoft.Storage/storageAccounts/$RESOURCE_NAME/$HEALTH_EP"
+      ;;
+   "sqlserver")
+      # we monitor SQL at the Db level, so need the Db named as well as the server resource
+      if ! [ -n "$SUBRESOURCE_NAME" ]
+      then
+         echo "EAV `basename $0`: Missing parameter SUBRESOURCE_NAME" | logger -p local0.debug
+         exit 1
+      else
+         AZ_RESOURCE_HEALTH="$MGMT_URI/Microsoft.sql/servers/$RESOURCE_NAME/databases/$SUBRESOURCE_NAME/$HEALTH_EP"
+      fi
+      ;;
+   "cosmos")
+      AZ_RESOURCE_HEALTH="$MGMT_URI/Microsoft.DocumentDB/databaseAccounts/$RESOURCE_NAME/$HEALTH_EP"
+      ;;
+   *)
+      echo "EAV `basename $0`: Error - unsupported PaaS provider: $PROVIDER" | logger -p local0.debug
+      exit 1
+      ;;
+esac
+
+# Log debug to local0.debug (/var/log/ltm)
+# Check if a variable named DEBUG exists from the monitor definition
+# This can be set using a monitor variable DEBUG=0 or 1
+if [ -n "$DEBUG" ]
+then
+   if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: Debug is ON" | logger -p local0.debug; fi
+else
+   # If the monitor config didn't specify debug, enable/disable it here
+   DEBUG=0
+fi
+
+# Check if there is a prior instance of the monitor running
+pidfile="/var/run/`basename $0`.$IP.$PORT.$RESOURCE_NAME.pid"
+if [ -f $pidfile ]
+then
+   kill -9 `cat $pidfile` > /dev/null 2>&1
+   echo "EAV `basename $0`: exceeded monitor interval for $RESOURCE_NAME, needed to kill ${IP}:${PORT} with PID `cat $pidfile`" | logger -p local0.error
+fi
+
+# Add the current PID to the pidfile
+echo "$$" > $pidfile
+
+# Debug
+if [ "$DEBUG" -eq 1 ]
+then
+   ####  Customize the log statement here if you want to log the command run or the output ####
+   echo "EAV `basename $0`: IMDS_IP is $IMDS_IP, RESOURCE_NAME is $RESOURCE_NAME" | logger -p local0.debug
+fi
+
+if
+   # Check if we can get to IMDS - alert if not
+   /bin/curl -s "$TEST_URI" -H Metadata:true >/dev/null 2>&1
+then
+   GET_TOKEN=$(/bin/curl -s "$GET_URI" -H Metadata:true)
+   if echo "$GET_TOKEN" | egrep -q '^{"error"'
+   then
+      TOKEN_ERROR=$(echo $GET_TOKEN | /bin/jq -r '.error')
+      TOKEN_ERROR_DESC=$(echo $GET_TOKEN | /bin/jq -r '.error_description')
+      echo "EAV `basename $0`: Error getting token - $TOKEN_ERROR, $TOKEN_ERROR_DESC" | logger -p local0.debug
+      rm -f $pidfile
+      exit 1
+   else
+      TOKEN=$(echo $GET_TOKEN | /bin/jq -r '.access_token')
+      TOKENBIT=$(echo $TOKEN | cut -c 1-20)
+      if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: Token is: $TOKENBIT..." | logger -p local0.debug; fi
+   fi
+else
+   if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: IMDS Test Failed, check VM reachability to Azure IMDS" | logger -p local0.debug; fi
+   exit 1
+fi
+
+# We can now check availability status of the PaaS Service
+RESULT=$(/bin/curl -s "$AZ_RESOURCE_HEALTH" -H "Authorization: bearer $TOKEN" -H Metadata:true)
+if echo $RESULT | egrep -q '^{"error"'
+then
+   ERROR_CODE=$(echo $RESULT | /bin/jq -r '.error.code')
+   ERROR_DESC=$(echo $RESULT | jq -r '.error.message')
+   echo "EAV `basename $0`: Error polling health endpoint - $ERROR_CODE, $ERROR_DESC" | logger -p local0.debug
+   rm -f $pidfile
+   result=1
+else
+   AVAIL=$(echo $RESULT | /bin/jq -r .properties.availabilityState)
+   SUMM=$(echo $RESULT | /bin/jq -r .properties.summary)
+   if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: Reply from Health Endpoint is: $AVAIL" | logger -p local0.debug; fi
+   case "$AVAIL" in
+      "Available")
+         result=0
+         ;;
+      "Degraded")
+         result=0
+         "EAV `basename $0`: WARNING: Health of Azure PaaS Service: $RESOURCE_GROUP/$RESOURCE_NAME is Degraded." | logger -p local0.debug
+         ;;
+      "Unavailable")
+         result=1
+         "EAV `basename $0`: CRITICAL: Health of Azure PaaS Service: $RESOURCE_GROUP/$RESOURCE_NAME is Unavailable." | logger -p local0.debug
+         "EAV `basename $0`: $RESOURCE_GROUP/$RESOURCE_NAME Summary: $SUMM." | logger -p local0.debug
+         ;;
+      "Unknown")
+         result=1
+         "EAV `basename $0`: CRITICAL: Health of Azure PaaS Service: $RESOURCE_GROUP/$RESOURCE_NAME is Unknown." | logger -p local0.debug
+         ;;
+      *)
+         if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: Unknown Response checking health of resource: $RESOURCE_GROUP/$RESOURCE_NAME" | logger -p local0.debug; fi
+         result=1
+         ;;
+   esac
+fi
+
+# Check if the command ran successfully
+# Note that any standard output will result in the script execution being stopped
+# So do any cleanup before echoing to STDOUT
+if [ $result -eq 0 ]
+then
+   rm -f $pidfile
+   if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: Azure Resource: $RESOURCE_GROUP/$RESOURCE_NAME is marked AVAILABLE by a monitor." | logger -p local0.debug; fi
+   echo "UP"
+else
+   rm -f $pidfile
+   if [ "$DEBUG" -eq 1 ]; then echo "EAV `basename $0`: Azure Resource: $RESOURCE_GROUP/$RESOURCE_NAME is marked DOWN by a monitor." | logger -p local0.debug; fi
+fi
