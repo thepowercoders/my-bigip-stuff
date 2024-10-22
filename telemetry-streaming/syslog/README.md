@@ -49,7 +49,7 @@ destination(d_remote_loghost);
 
 ## Log Analytics Logs
 Once it has been enabled, you should shortly see a new table created in Azure in your log analytics workspace for syslog:
-![image](https://github.com/thepowercoders/f5-bigip/assets/32461620/875e273f-ed4d-4b5a-aeb8-849eddac1c7e)
+![syslog_customlog](/images/syslog_customlog.png)
 
 This just dumps the raw data of the log into a column, if you want to get something a little more readable, you can use the following kusto query:
 ``` kusto
@@ -75,13 +75,16 @@ and contains a searchable table of syslog messages over the selected time period
 There are a number of system processes and daemons which run as part of the bigip and provide logging to various logs in syslog. A list of these is available from [this link](https://my.f5.com/manage/s/article/K67197865).
 
 **Example Showing Time Graph of syslog Messages (with time brush slicer)**
-![image](https://github.com/thepowercoders/f5-bigip/assets/32461620/a4a9b301-2166-47af-b816-b3d2dc1b67dd)
-The time graph over the selected period can be brushed using your cursor to select a time interval within the main interval, if you spot an interesting period within the time graph and only wish to see what logs were created at this period. In the top right there is a small icon:![image](https://github.com/thepowercoders/f5-bigip/assets/32461620/0b19649e-e404-47ae-a3ab-e490f4cef99f) which allows you to reset the time range selection.
+![syslog_timegraph](/images/syslog_timegraph.png)
+The time graph over the selected period can be brushed using your cursor to select a time interval within the main interval, if you spot an interesting period within the time graph and only wish to see what logs were created at this period. In the top right there is a small icon: ![syslog_graph_reset_icon](/images/syslog_graph_reset_icon.png)
+which allows you to reset the time range selection.
 
 The workbook creates tiles for each daemon process and these can be clicked on to filter the log table to that specific type of log. For most purposes, the `/var/log/ltm` log provides the main notification of traffic or operational events which are generated from the `tmm` daemon. If your bigip is running DNS (GTM) then the gtmd process also provide GSLB notifications.  
 
 **Example showing Count of syslog Messages per Process/Daemon**
 ![image](https://github.com/thepowercoders/f5-bigip/assets/32461620/6078c057-33b4-47d2-8c06-49fe1eb783cc)
+
+![syslog_count_per_msg](/images/syslog_count_per_msg.png)
 
 >📝 **Note:** tmm is a multi-threaded process which has multiple instances matching the cpus on the bigip VE. The process name in the log will show the instance number (e.g. tmm2, tmm5 ...etc) but in the 'Count of syslog Messages per Process/Daemon' tiles (above), all these logs are wrapped up and counted under the 'tmm' tile.
 

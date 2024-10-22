@@ -1,0 +1,586 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "<h1><img src=\"https://www.f5.com/content/dam/f5/f5-logo.svg\" alt=\"F5 logo\" width=\"50\" height=\"60\" />\n&nbsp; F5 BIG-IP Configuration Information</h1>\n\n---\n\nThe following workbook displays configuration information for big-ip LTM Virtual Servers, Pools and Pool Members. Information is displayed to replicate the functionality of the big-ip GUI Interface and provides a method of viewing BIG-IP configuration, across multiple devices reporting into Azure via Telemetry Streaming, without having to access the device.\n\n---\n\n## Local Traffic\n---"
+      },
+      "name": "text - 2"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "parameters": [
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "DefaultSubscription_Internal",
+            "type": 1,
+            "isRequired": true,
+            "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| take 1\r\n| project subscriptionId",
+            "crossComponentResources": [
+              "value::selected"
+            ],
+            "isHiddenWhenLocked": true,
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "Subscription",
+            "type": 6,
+            "isRequired": true,
+            "query": "summarize by subscriptionId\r\n| project value = strcat(\"/subscriptions/\", subscriptionId), label = subscriptionId, selected = iff(subscriptionId =~ '{DefaultSubscription_Internal}', true, false)\r\n",
+            "crossComponentResources": [
+              "value::selected"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "Workspace",
+            "type": 5,
+            "isRequired": true,
+            "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| project id",
+            "crossComponentResources": [
+              "{Subscription}"
+            ],
+            "value": "value::1",
+            "typeSettings": {
+              "resourceTypeFilter": {
+                "microsoft.operationalinsights/workspaces": true
+              },
+              "additionalResourceOptions": [
+                "value::1"
+              ]
+            },
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "F5Telemetry_virtualServers_CL",
+            "type": 1,
+            "query": "let MissingTable = view () { print isMissing=1 };\r\nunion isfuzzy=true MissingTable, (F5Telemetry_virtualServers_CL | getschema | summarize c=count() | project isMissing=iff(c > 0, 0, 1)) \r\n| top 1 by isMissing asc",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "isHiddenWhenLocked": true,
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "customWidth": "75",
+      "name": "parmHeader"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Missing Telemetry table\r\n\r\nThe table `F5Telemetry_virtualServers_CL` is not found in the selected Workspace.\r\n\r\nTo visualize the bigip device configuration you need to [set up big-ip Telemetry Streaming application to send metrics and logs to your Log Analytics workspace](https://clouddocs.f5.com/products/extensions/f5-telemetry-streaming/latest/event-listener.html).",
+        "style": "upsell"
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_virtualServers_CLMissing",
+        "comparison": "isEqualTo",
+        "value": "1"
+      },
+      "name": "No F5Telemetry_virtualServers_CL table"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "parmDevice",
+            "label": "Device",
+            "type": 2,
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "F5Telemetry_virtualServers_CL\r\n| extend Device = tostring(split(_ResourceId, '/')[-1])\r\n| distinct Device\r\n| order by Device asc",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "timeContext": {
+              "durationMs": 1800000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": [
+              "con-proddr-dm-ukw-f5-001"
+            ]
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "parmPartition",
+            "label": "Partition",
+            "type": 2,
+            "query": "F5Telemetry_virtualServers_CL \r\n| where TimeGenerated > ago(30m)\r\n| extend Device = tostring(split(_ResourceId, '/')[-1])\r\n| where Device in~ ({parmDevice})\r\n| distinct f5tenant_s",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": "dccdm-prod"
+          },
+          {
+            "version": "KqlParameterItem/1.0",
+            "name": "parmCommon",
+            "label": "Include Common",
+            "type": 2,
+            "isRequired": true,
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": "[\r\n    {\r\n        \"value\": 2,\r\n        \"label\": \"Yes\",\r\n        \"selected\":true \r\n    },\r\n    {\r\n        \"value\": 1,\r\n        \"label\": \"No\"\r\n    }\r\n]"
+          }
+        ],
+        "style": "above",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parameters - 4"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "**Note:** When a partition is selected other than `/Common`, the tables will still also show configuration in `/Common`. This replicates the functionality of the views given in the big-ip GUI. <br><br>If you only want to show partition data, you can override this behaviour by setting the above parameter **Include Common** to *'No'*.",
+        "style": "info"
+      },
+      "name": "text - 6"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_virtualServers_CL\r\n| where TimeGenerated > ago(2m)\r\n| extend UniqueRecordIdentifier = strcat(_ResourceId, \"_\", name_s)\r\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier \r\n| extend Device = tostring(split(_ResourceId, '/')[-1])\r\n| where '{parmDevice:label}' == '<unset>' or Device in~ ({parmDevice})\r\n| where '{parmPartition:label}' == '<unset>' or (f5tenant_s == '{parmPartition}' or (f5tenant_s == 'Common' and '{parmCommon}' == 2))\r\n| extend arr_name = split(name_s, '/')\r\n| extend arr_dest = iff(strlen(mask_s) > 32, split(destination_s, '.'), split(destination_s, ':'))\r\n| extend combState = strcat(availabilityState_s, ' (', enabledState_s, ')')\r\n| order by Device asc, name_s \r\n| project\r\n    Device,\r\n    combState,\r\n    Name = tostring(arr_name[-1]),\r\n    Destination = tostring(arr_dest[0]),\r\n    Service_Port = tostring(arr_dest[-1]),\r\n    pool_s,\r\n    Partition = strcat(f5tenant_s, \"/\", application_s),\r\n    ['Bits (In)'] = clientside_bitsIn_d,\r\n    ['Bits (Out)'] = clientside_bitsOut_d,\r\n    ['Packets (In)'] = clientside_pktsIn_d,\r\n    ['Packets (Out)'] = clientside_pktsOut_d,\r\n    ['Connections (Current)'] = clientside_curConns_d,\r\n    ['Connections (Max)'] = clientside_maxConns_d,\r\n    ['Connections (Total)'] = clientside_totConns_d,\r\n    ['Requests (Total)'] = totRequests_d",
+        "size": 0,
+        "title": "Local Traffic  ››  Virtual Servers : Virtual Server List",
+        "showExportToExcel": true,
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "combState",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "(disabled)",
+                    "representation": "disabled",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "disabled-by-parent",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "available",
+                    "representation": "Available",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "offline",
+                    "representation": "failed",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Name",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "GenericDetails",
+                "linkIsContextBlade": true
+              }
+            },
+            {
+              "columnMatch": "Bits (In)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Bits (Out)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Packets (In)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Packets (Out)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Connections (Current)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Connections (Max)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Connections (Total)",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "yellowOrangeRed"
+              }
+            },
+            {
+              "columnMatch": "Requests (Total)",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "purpleBlue"
+              }
+            }
+          ],
+          "filter": true,
+          "sortBy": [
+            {
+              "itemKey": "$gen_heatmap_Connections (Total)_13",
+              "sortOrder": 2
+            }
+          ],
+          "labelSettings": [
+            {
+              "columnId": "combState",
+              "label": "Status"
+            },
+            {
+              "columnId": "Service_Port",
+              "label": "Service Port"
+            },
+            {
+              "columnId": "pool_s",
+              "label": "Pool"
+            },
+            {
+              "columnId": "Partition",
+              "label": "Tenant / App"
+            }
+          ]
+        },
+        "sortBy": [
+          {
+            "itemKey": "$gen_heatmap_Connections (Total)_13",
+            "sortOrder": 2
+          }
+        ]
+      },
+      "name": "query - 1"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_pools_CL \r\n| where TimeGenerated > ago(2m)\r\n| extend UniqueRecordIdentifier = strcat(_ResourceId, name_s)\r\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier \r\n| extend Device = tostring(split(_ResourceId, '/')[-1])\r\n| where '{parmDevice:label}' == '<unset>' or Device in ({parmDevice})\r\n| where '{parmPartition:label}' == '<unset>' or (f5tenant_s == '{parmPartition}' or (f5tenant_s == 'Common' and '{parmCommon}' == 2))\r\n| extend arr_name = split(name_s, '/')\r\n| extend combState = strcat(availabilityState_s, ' (', enabledState_s, \")\")\r\n| order by Device asc, name_s\r\n| project\r\n    Device,\r\n    combState,\r\n    Name = tostring(arr_name[-1]),\r\n    description_s,\r\n    activeMemberCnt_d,\r\n    Partition = strcat(f5tenant_s, \"/\", application_s),\r\n    ['Bits (In)'] = serverside_bitsIn_d,\r\n    ['Bits (Out)'] = serverside_bitsOut_d,\r\n    ['Packets (In)'] = serverside_pktsIn_d,\r\n    ['Packets (Out)'] = serverside_pktsOut_d,\r\n    ['Connections (Current)'] = serverside_curConns_d,\r\n    ['Connections (Max)'] = serverside_maxConns_d,\r\n    ['Connections (Total)'] = serverside_totConns_d,\r\n    ['Requests (Total)'] = totRequests_d,\r\n    UniqueRecordIdentifier\r\n\r\n",
+        "size": 0,
+        "title": "Local Traffic ›› Pools",
+        "exportFieldName": "UniqueRecordIdentifier",
+        "exportParameterName": "parmPoolURN",
+        "exportDefaultValue": "null",
+        "showExportToExcel": true,
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "combState",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "endsWith",
+                    "thresholdValue": "(disabled)",
+                    "representation": "disabled",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "endsWith",
+                    "thresholdValue": "(disabled-by-parent)",
+                    "representation": "2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "available",
+                    "representation": "Available",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "offline",
+                    "representation": "failed",
+                    "text": "{0}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Name",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "GenericDetails",
+                "linkIsContextBlade": true
+              }
+            },
+            {
+              "columnMatch": "UniqueRecordIdentifier",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Bits (In)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Bits (Out)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Packets (In)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Packets (Out)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Connections (Current)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Connections (Max)",
+              "formatter": 5
+            }
+          ],
+          "filter": true,
+          "labelSettings": [
+            {
+              "columnId": "Device",
+              "label": "Device"
+            },
+            {
+              "columnId": "combState",
+              "label": "Status"
+            },
+            {
+              "columnId": "Name",
+              "label": "Name"
+            },
+            {
+              "columnId": "description_s",
+              "label": "Description"
+            },
+            {
+              "columnId": "activeMemberCnt_d",
+              "label": "Members"
+            },
+            {
+              "columnId": "Partition",
+              "label": "Partition / App"
+            }
+          ]
+        },
+        "sortBy": []
+      },
+      "name": "query - 3"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "Clicking on any Pool above will display the Pool Members below related to the selected Pool.",
+        "style": "info"
+      },
+      "name": "text - 7"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_poolMembers_CL \r\n| where TimeGenerated > ago(2m)\r\n| extend UniqueRecordIdentifier = strcat(_ResourceId, poolName_s, name_s)\r\n| extend UniquePoolIdentifier = strcat(_ResourceId, poolName_s)\r\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier \r\n| where '{parmPoolURN}' == 'null' or UniquePoolIdentifier == '{parmPoolURN}'\r\n| extend Device = tostring(split(_ResourceId, '/')[-1])\r\n| extend Tenant = tostring(split(name_s, '/')[1])\r\n| where '{parmDevice:label}' == '<unset>' or Device in~ ({parmDevice})\r\n| where '{parmPartition:label}' == '<unset>' or (Tenant == '{parmPartition}' or Tenant == 'Common')\r\n| extend arrayName = split(name_s, '/')\r\n| order by Device asc, name_s \r\n| project\r\n    Device,\r\n    Status = strcat(availabilityState_s,\" (\",enabledState_s,\")\"),\r\n    monitorStatus_s,\r\n    Node = split(tostring(arrayName[-1]),\":\")[0],\r\n    port_d,\r\n    Tenant,\r\n    App = tostring(split(name_s, '/')[-2]),\r\n    status_statusReason_s,\r\n    ['Bits (In)'] = serverside_bitsIn_d,\r\n    ['Bits (Out)'] = serverside_bitsOut_d,\r\n    ['Packets (In)'] = serverside_pktsIn_d,\r\n    ['Packets (Out)'] = serverside_pktsOut_d,\r\n    ['Connections (Current)'] = serverside_curConns_d,\r\n    ['Connections (Max)'] = serverside_maxConns_d,\r\n    ['Connections (Total)'] = serverside_totConns_d,\r\n    ['Requests (Total)'] = totRequests_d",
+        "size": 0,
+        "title": "Local Traffic ›› Pools : Pool List ›› Members",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "endsWith",
+                    "thresholdValue": "(disabled)",
+                    "representation": "disabled",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "available",
+                    "representation": "Available",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "offline",
+                    "representation": "failed",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "monitorStatus_s",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "up",
+                    "representation": "Available",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "down",
+                    "representation": "error",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "unchecked",
+                    "representation": "more",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Node",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "GenericDetails",
+                "linkIsContextBlade": true
+              }
+            },
+            {
+              "columnMatch": "Bits (In)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Bits (Out)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Packets (In)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Packets (Out)",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Requests (Total)",
+              "formatter": 5
+            }
+          ],
+          "labelSettings": [
+            {
+              "columnId": "monitorStatus_s",
+              "label": "Monitor Status"
+            },
+            {
+              "columnId": "port_d",
+              "label": "Service Port"
+            },
+            {
+              "columnId": "status_statusReason_s",
+              "label": "Monitor Status"
+            }
+          ]
+        }
+      },
+      "conditionalVisibility": {
+        "parameterName": "parmPoolURN",
+        "comparison": "isNotEqualTo",
+        "value": "null"
+      },
+      "name": "query - 5"
+    }
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
