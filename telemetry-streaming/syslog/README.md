@@ -76,8 +76,8 @@ There are a number of system processes and daemons which run as part of the bigi
 
 **Example Showing Time Graph of syslog Messages (with time brush slicer)**
 ![syslog_timegraph](/images/syslog_timegraph.png)
-The time graph over the selected period can be brushed using your cursor to select a time interval within the main interval, if you spot an interesting period within the time graph and only wish to see what logs were created at this period. In the top right there is a small icon: ![syslog_graph_reset_icon](/images/syslog_graph_reset_icon.png)
-which allows you to reset the time range selection.
+
+The time graph over the selected period can be brushed using your cursor to select a time interval within the main interval, if you spot an interesting period within the time graph and only wish to see what logs were created at this period. In the top right there is a small icon: <img src="/images/syslog_graph_reset_icon.png" width="400" /> which allows you to reset the time range selection.
 
 The workbook creates tiles for each daemon process and these can be clicked on to filter the log table to that specific type of log. For most purposes, the `/var/log/ltm` log provides the main notification of traffic or operational events which are generated from the `tmm` daemon. If your bigip is running DNS (GTM) then the gtmd process also provide GSLB notifications.  
 
