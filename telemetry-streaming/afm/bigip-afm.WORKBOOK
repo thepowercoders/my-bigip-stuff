@@ -1,0 +1,1163 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "<h1><img src=\"https://www.f5.com/content/dam/f5/f5-logo.svg\" alt=\"F5 logo\" width=\"50\" height=\"60\" />\r\n&nbsp; F5 BIG-IP AFM</h1>\r\n\r\n---\r\nThe F5 big-ip AFM is the <strong>Advanced Firewall Manager</strong> which provides a network firewall function as well as managing IDPS (Intrusion Detection and Prevention System) services.\r\nThe following workbook can be used to analyse data being sent by the AFM into Azure Sentinel.\r\n\r\n---\r\n"
+      },
+      "name": "textReportHeader"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "value::selected"
+        ],
+        "parameters": [
+          {
+            "id": "cb5e40b4-020b-4f01-88a6-50e6225e2fb9",
+            "version": "KqlParameterItem/1.0",
+            "name": "DefaultSubscription_Internal",
+            "type": 1,
+            "isRequired": true,
+            "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| take 1\r\n| project subscriptionId",
+            "crossComponentResources": [
+              "value::selected"
+            ],
+            "isHiddenWhenLocked": true,
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources"
+          },
+          {
+            "id": "20fb47ba-f521-47ea-9fb7-66339ad9c56a",
+            "version": "KqlParameterItem/1.0",
+            "name": "Subscription",
+            "type": 6,
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "summarize by subscriptionId\r\n| project value = strcat(\"/subscriptions/\", subscriptionId), label = subscriptionId, selected = iff(subscriptionId =~ '{DefaultSubscription_Internal}', true, false)\r\n",
+            "crossComponentResources": [
+              "value::selected"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources",
+            "value": []
+          },
+          {
+            "id": "50ed33e8-3c82-4f2d-8599-517bde7c3a18",
+            "version": "KqlParameterItem/1.0",
+            "name": "Workspace",
+            "type": 5,
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| project id",
+            "crossComponentResources": [
+              "{Subscription}"
+            ],
+            "typeSettings": {
+              "resourceTypeFilter": {
+                "microsoft.operationalinsights/workspaces": true
+              },
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources",
+            "value": []
+          }
+        ],
+        "style": "pills",
+        "queryType": 1,
+        "resourceType": "microsoft.resourcegraph/resources"
+      },
+      "customWidth": "75",
+      "name": "parmSetHeader"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "parameters": [
+          {
+            "id": "977757fe-a2e3-4c43-8b7f-cc4cae3b03cc",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmTimeRange",
+            "label": "Select Time Range",
+            "type": 4,
+            "isRequired": true,
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 900000
+                },
+                {
+                  "durationMs": 1800000
+                },
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 14400000
+                },
+                {
+                  "durationMs": 43200000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 172800000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2419200000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 5184000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ],
+              "allowCustom": true
+            },
+            "value": {
+              "durationMs": 1800000
+            }
+          },
+          {
+            "id": "656e6cd5-ca1f-42c9-b327-f1777a8f3148",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmHideAzure",
+            "label": "Hide Azure Monitor IPs",
+            "type": 10,
+            "description": "This will hide all logs for connections inbound from Azure Monitor ranges 40.80.0.0/16 and 40.87.0.0/16",
+            "isRequired": true,
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": " [{ \"value\": \"true\", \"label\": \"Yes\", \"selected\":true }, { \"value\": \"false\", \"label\": \"No\"}]"
+          },
+          {
+            "id": "a72f8888-f501-479c-bedb-6de7880e4368",
+            "version": "KqlParameterItem/1.0",
+            "name": "F5Telemetry_AFM_CLMissing",
+            "type": 1,
+            "query": "let MissingTable = view () { print isMissing=1 };\r\nunion isfuzzy=true MissingTable, (F5Telemetry_syslog_CL | getschema | summarize c=count() | project isMissing=iff(c > 0, 0, 1)) \r\n| top 1 by isMissing asc",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "isHiddenWhenLocked": true,
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          },
+          {
+            "id": "e07c85c3-d00a-41c1-8239-c2104c129aee",
+            "version": "KqlParameterItem/1.0",
+            "name": "allBIGIPSystems",
+            "type": 9,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "Resources\r\n| where type == 'microsoft.compute/virtualmachines'\r\n| where properties.storageProfile.imageReference.publisher == 'f5-networks'\r\n| project name",
+            "crossComponentResources": [
+              "value::all"
+            ],
+            "isHiddenWhenLocked": true,
+            "queryType": 1,
+            "resourceType": "microsoft.resourcegraph/resources",
+            "value": [
+              "con-prod-dm-uks-f5-001",
+              "con-prod-dm-uks-f5-002",
+              "con-prod-dm-uks-f5-003",
+              "con-proddr-dm-ukw-f5-001"
+            ]
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parmSetSubHeader"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Missing metrics table\r\n\r\nThe table `F5Telemetry_AFM_CL` is not found in the selected Workspace(s).\r\n\r\nTo visualize the metrics you need to [set up big-ip Telemetry Streaming application to send metrics and logs to your Log Analytics workspace](https://clouddocs.f5.com/products/extensions/f5-telemetry-streaming/latest/event-listener.html)."
+      },
+      "conditionalVisibility": {
+        "parameterName": "F5Telemetry_AFM_CLMissing",
+        "comparison": "isEqualTo",
+        "value": "1"
+      },
+      "name": "textMissingTable"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\r\n## Global Network Firewall Insights\r\nThis is a global view of firewall activity across the entire estate of BIG-IP devices."
+      },
+      "name": "textAFMHeader"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let data = F5Telemetry_AFM_CL;\r\ndata\r\n| summarize Count = count() by hostname_s = tostring(split(hostname_s, '.')[0]) \r\n| join kind = fullouter (datatable(hostname_s:string)[{allBIGIPSystems}]) on hostname_s\r\n| project hostname_s = iff(hostname_s == '', hostname_s1, hostname_s), Count = iff(hostname_s == '', 0, Count)\r\n| join kind = leftouter (data\r\n    | make-series Trend = count() default = 0 on TimeGenerated from {parmTimeRange:start} to {parmTimeRange:end} step {parmTimeRange:grain} by hostname_s)\r\n    on hostname_s\r\n| project-away hostname_s1, TimeGenerated\r\n| union (\r\n    data \r\n    | summarize Count = count() \r\n    | extend jkey = 1\r\n    | join kind=inner (data\r\n        | make-series Trend = count() default = 0 on TimeGenerated from {parmTimeRange:start} to {parmTimeRange:end} step {parmTimeRange:grain}\r\n        | extend jkey = 1) on jkey\r\n    | extend hostname_s = 'All', hostname_ss = '*'    \r\n)\r\n| order by Count desc\r\n| take 10\r\n",        "size": 4,
+        "title": "Advanced Firewall Manager (AFM) Events",
+        "timeContextFromParameter": "parmTimeRange",
+        "exportFieldName": "hostname_s",
+        "exportParameterName": "HostName",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "hostname_s",
+            "formatter": 1,
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto",
+              "showIcon": true
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "secondaryContent": {
+            "columnMatch": "Trend",
+            "formatter": 10,
+            "formatOptions": {
+              "min": 0,
+              "palette": "blue",
+              "showIcon": true
+            }
+          },
+          "showBorder": false
+        }
+      },
+      "name": "queryGlobalAFMView"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "> Select a Global Policy to filter firewall events to a particular environment. The report will aggregate firewall data across multiple devices as long as they have the same policy name. Select '*&lt;unset&gt;*' to view events globally. \r\n\r\n> You can also click on a device above to summarize for that device only."
+      },
+      "name": "textInfo1"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "parameters": [
+          {
+            "id": "c205414a-5af4-4731-824f-3c20eaf38bc3",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmPolicy",
+            "label": "Global Policy",
+            "type": 2,
+            "query": "F5Telemetry_AFM_CL \r\n| where acl_policy_name_s != ''\r\n| distinct tostring(split(acl_policy_name_s, '/')[-1])\r\n",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "timeContext": {
+              "durationMs": 1800000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parmSetPolicy"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where hostname_s == '{HostName}' or '{HostName}' == \"All\"\r\n| where isnotempty(acl_policy_type_s) and drop_reason_s != 'Connection Flow Miss'\r\n| extend dest_ip_mod = strcat(dest_ip_s,\":\",dest_port_s)\r\n| join kind=leftouter (F5Telemetry_virtualServers_CL | distinct destination_s=tostring(split(destination_s, '/')[-1]), name_s ) on $left.dest_ip_mod == $right.destination_s\r\n| summarize Count = count() by ['AFM Action'] = action_s, dest_ip_s, ['Target Virtual Server'] = tostring(split(name_s, '/')[-1]),['Rule Set'] = tostring(split(acl_rule_name_s, '/')[-1])\r\n| order by ['AFM Action'] asc",
+        "size": 0,
+        "title": "AFM Policy Summary",
+        "timeContextFromParameter": "parmTimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "AFM Action",
+              "formatter": 18,
+              "formatOptions": {
+                "linkColumn": "Rule Set",
+                "linkTarget": "CellDetails",
+                "linkIsContextBlade": true,
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Accept",
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Drop",
+                    "representation": "critical",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "info",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Rule Set",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Count",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "bluePurple"
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            }
+          ],
+          "hierarchySettings": {
+            "treeType": 1,
+            "groupBy": [
+              "AFM Action"
+            ],
+            "expandTopLevel": true
+          },
+          "labelSettings": [
+            {
+              "columnId": "dest_ip_s",
+              "label": "Destination Virtual Server IP"
+            }
+          ]
+        },
+        "sortBy": []
+      },
+      "name": "queryPolicySummary"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "> **Note:** The target virtual server is calculated based on the incoming traffic destination IP and port - the combination of these 2 values are used for matching. If traffic is to a destination which does not have a virtual server, this field will be blank. Virtual Servers covering a subnet will also not be matched."
+      },
+      "name": "textInfo2"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where action_s == 'Drop' or action_s == 'Accept'\r\n| summarize Dropped = countif(action_s == 'Drop'), Accepted = countif(action_s == 'Accept') by bin(TimeGenerated, {parmTimeRange:grain})\r\n| render timechart\r\n",
+        "size": 2,
+        "title": "Policy Matches over Time Period",
+        "timeContextFromParameter": "parmTimeRange",
+        "timeBrushParameterName": "q15brush",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ]
+      },
+      "name": "queryAFMTimeChart"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Traffic Analysis\r\nTo drill down on specific times, you can select a part of the time graph above where you want to focus, and the charts will update accordingly."
+      },
+      "name": "textInfo3"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL\r\n| where iff(isnotempty('{q15brush}'),TimeGenerated {q15brush},TimeGenerated {parmTimeRange})\r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where action_s == 'Drop' or action_s == 'Accept'\r\n| extend ruleName = tostring(split(acl_rule_name_s, ':')[-1])\r\n| where isnotempty(action_s) \r\n| summarize totalHits = count() by tostring(split(acl_rule_name_s, ':')[-1])\r\n",
+        "size": 0,
+        "title": "Total hits per rule",
+        "exportFieldName": "",
+        "exportParameterName": "parmRuleHits",
+        "exportDefaultValue": "null",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "piechart",
+        "gridSettings": {
+          "sortBy": [
+            {
+              "itemKey": "acl_rule_name_s__1",
+              "sortOrder": 2
+            }
+          ]
+        },
+        "sortBy": [
+          {
+            "itemKey": "acl_rule_name_s__1",
+            "sortOrder": 2
+          }
+        ],
+        "chartSettings": {
+          "showLegend": true
+        }
+      },
+      "customWidth": "50",
+      "name": "queryRuleHits",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where isnotempty(acl_policy_type_s)\r\n| where iff(isnotempty('{q15brush}'),TimeGenerated {q15brush},TimeGenerated {parmTimeRange})\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| where '{parmRuleHits}' == 'null' or acl_rule_name_s contains todynamic('{parmRuleHits}').label\r\n| summarize Count = count() by ['Source IP'] = source_ip_s\r\n| order by Count\r\n| take 10",
+        "size": 0,
+        "title": "Rule Hits per IP Address (click rule opposite to filter)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "piechart"
+      },
+      "customWidth": "50",
+      "name": "queryRuleHitsPerIP",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Rejected Traffic Analysis\r\nTo drill down on specific times, you can select a part of the time graph above where you want to focus, and the chart and Top 10 deny count table will update accordingly."
+      },
+      "name": "textInfo4"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where iff(isnotempty('{q15brush}'),TimeGenerated {q15brush},TimeGenerated {parmTimeRange})\r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where isnotempty(acl_policy_type_s) and action_s == 'Drop' and drop_reason_s != 'Connection Flow Miss'\r\n| summarize Count = count() by ['Source IP'] = source_ip_s\r\n| order by Count",
+        "size": 0,
+        "title": "Rejections by Source IP",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "piechart"
+      },
+      "customWidth": "50",
+      "name": "queryRejectsPerIP",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where isnotempty(acl_policy_type_s) and action_s == 'Drop' and drop_reason_s != 'Connection Flow Miss'\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where iff(isnotempty('{q15brush}'),TimeGenerated {q15brush},TimeGenerated {parmTimeRange})\r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| summarize Count = count() by ['Source IP'] = source_ip_s\r\n| order by Count\r\n| take 10",
+        "size": 0,
+        "title": "Top 10 Denied Source IP Addresses",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Count",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "yellowOrangeRed"
+              }
+            }
+          ],
+          "labelSettings": [
+            {
+              "columnId": "Count",
+              "label": "Deny Count"
+            }
+          ]
+        },
+        "tileSettings": {
+          "showBorder": false,
+          "titleContent": {
+            "columnMatch": "Source IP",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Count",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        },
+        "graphSettings": {
+          "type": 0,
+          "topContent": {
+            "columnMatch": "Source IP",
+            "formatter": 1
+          },
+          "centerContent": {
+            "columnMatch": "Count",
+            "formatter": 1,
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "maximumSignificantDigits": 3,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        },
+        "mapSettings": {
+          "locInfo": "LatLong",
+          "sizeSettings": "Count",
+          "sizeAggregation": "Sum",
+          "legendMetric": "Count",
+          "legendAggregation": "Sum",
+          "itemColorSettings": {
+            "type": "heatmap",
+            "colorAggregation": "Sum",
+            "nodeColorField": "Count",
+            "heatmapPalette": "greenRed"
+          }
+        }
+      },
+      "customWidth": "50",
+      "name": "queryDenyList",
+      "styleSettings": {
+        "maxWidth": "50"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\r\n## Network Firewall Logs\r\n---"
+      },
+      "name": "textAFMSubHeader"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "parameters": [
+          {
+            "id": "513a762e-8c07-4ebc-b792-15756c834316",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmUseBrush",
+            "label": "Use Brush Time",
+            "type": 10,
+            "description": "Using this allows you to filter the search to any time period selected (brushed) on the 'Policy Matches over Time Period' chart.",
+            "isRequired": true,
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "jsonData": " [{ \"value\": \"1\", \"label\": \"Yes\" }, { \"value\": \"0\", \"label\": \"No\", \"selected\":true }]"
+          },
+          {
+            "id": "57397577-b381-477d-8a6f-70545a553e14",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmFilterAction",
+            "label": "Filter (Action)",
+            "type": 2,
+            "query": "\r\nF5Telemetry_AFM_CL\r\n| where context_type_s == 'Global' \r\n| distinct action_s\r\n",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [
+                "value::1"
+              ],
+              "showDefault": false
+            },
+            "defaultValue": "value::1",
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": "Drop"
+          },
+          {
+            "id": "bf5490e6-d1d9-4ac7-bc1c-7f4535133f2c",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmOrigIP",
+            "label": "Originating IP",
+            "type": 2,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "F5Telemetry_AFM_CL \r\n| where action_s == '{parmFilterAction}' or '{parmFilterAction}' == ''\r\n| where iff(isnotempty('{q15brush}') and {parmUseBrush} == 1 ,TimeGenerated {q15brush},\r\nTimeGenerated {parmTimeRange})\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| distinct source_ip_s\r\n",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": []
+          },
+          {
+            "id": "3378c0d3-e3de-4d44-a79b-07d7fee77e12",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmDestIP",
+            "label": "Destination IP",
+            "type": 2,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "F5Telemetry_AFM_CL \r\n| where action_s == '{parmFilterAction}' or '{parmFilterAction}' == ''\r\n| where iff(isnotempty('{q15brush}') and {parmUseBrush} == 1 ,TimeGenerated {q15brush},TimeGenerated {parmTimeRange})\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| distinct dest_ip_s\r\n",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": []
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parmSetAFMLogging"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where '{parmPolicy}' == '' or acl_policy_name_s contains '{parmPolicy}'\r\n| where action_s == '{parmFilterAction}' or '{parmFilterAction}' == ''\r\n| where iff(isnotempty('{q15brush}') and {parmUseBrush} == 1 ,TimeGenerated {q15brush},TimeGenerated {parmTimeRange})\r\n| where isnotempty(acl_policy_type_s) and drop_reason_s != 'Connection Flow Miss'\r\n| where iff({parmHideAzure},source_ip_s !startswith \"40.80\" and source_ip_s !startswith \"40.87\" , true)\r\n| where isempty('{parmOrigIP:label}') or source_ip_s in (split('{parmOrigIP:label}', \",\"))\r\n| where isempty('{parmDestIP:label}') or dest_ip_s in (split('{parmDestIP:label}', \",\"))\r\n| extend dest_ip_mod = strcat(dest_ip_s,\":\",dest_port_s)\r\n| join kind=leftouter (F5Telemetry_virtualServers_CL\r\n   | distinct destination_s, name_s ) on $left.dest_ip_mod == $right.destination_s\r\n| project \r\n    TimeGenerated,\r\n    ['Context Type'] = context_type_s,\r\n    ['Policy'] = tostring(split(acl_policy_name_s, '/')[-1]),\r\n    ['Policy Type'] = acl_policy_type_s,\r\n    ['Rule List'] =  tostring(split((split(acl_rule_name_s, '/')[3]), ':')[0]),\r\n    ['Rule Name'] = tostring(split(acl_rule_name_s, ':')[-1]),\r\n    Action = action_s,\r\n    ['Drop Reason'] = drop_reason_s,\r\n    ['Source VLAN'] = tostring(split(vlan_s, '/')[-1]),\r\n    ['Source IP'] = source_ip_s,\r\n    ['Source Port'] = source_port_s,\r\n    ['Destination IP'] = dest_ip_s,\r\n    Port = strcat(tolower(ip_protocol_s), \"/\", dest_port_s),\r\n    ['Virtual Server'] = tostring(split(name_s, '/')[-1]),\r\n    ['bigip Hostname'] = hostname_s,\r\n    ['Error Message Name'] = errdefs_msg_name_s,\r\n    Severity = severity_s,\r\n    Partition = f5tenant_s\r\n| sort by toint(TimeGenerated) desc",
+        "size": 0,
+        "showAnalytics": true,
+        "timeContextFromParameter": "parmTimeRange",
+        "showRefreshButton": true,
+        "showExportToExcel": true,
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Policy",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Policy Type",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Enforced",
+                    "representation": "Sev0",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Staged",
+                    "representation": "Sev4",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Context Name",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Context Type",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Rule Name",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "GenericDetails",
+                "linkIsContextBlade": true
+              }
+            },
+            {
+              "columnMatch": "Action",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Drop",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Accept",
+                    "representation": "green",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "lightBlue",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Drop Reason",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Virtual Server",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "bigip Hostname",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Error Message Name",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Severity",
+              "formatter": 5
+            },
+            {
+              "columnMatch": "Partition",
+              "formatter": 5
+            }
+          ],
+          "rowLimit": 1000,
+          "filter": true
+        }
+      },
+      "name": "queryLogList"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "<br>\r\n\r\n---\r\n## F5 BIG-IP Protocol Inspection (IDS/IPS) Insights\r\n---"
+      },
+      "name": "textIDPSHeader"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "parameters": [
+          {
+            "id": "29db1bb3-d93f-45ce-826b-246a00cedca9",
+            "version": "KqlParameterItem/1.0",
+            "name": "parmEnv",
+            "label": "Environment",
+            "type": 2,
+            "query": "F5Telemetry_AFM_CL \r\n| where f5tenant_s != ''\r\n| distinct f5tenant_s",
+            "crossComponentResources": [
+              "{Workspace}"
+            ],
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces",
+            "value": "Common"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "parmSetIDPSEnv"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where f5tenant_s == '{parmEnv}' or '{parmEnv}' == ''\r\n| where isnotempty(insp_id_s)\r\n| summarize Count = count() by ['IPS Action'] = action_s, risk_s, insp_name_s\r\n| order by ['IPS Action'] asc",
+        "size": 1,
+        "title": "IDPS Summary",
+        "noDataMessage": "There were no Protocol Violations in the selected time period.",
+        "timeContextFromParameter": "parmTimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "IPS Action",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "drop",
+                    "representation": "failed",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "reject",
+                    "representation": "disabled",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "accept",
+                    "representation": "1",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "success",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "risk_s",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "medium",
+                    "representation": "Sev1",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "low",
+                    "representation": "Sev2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "high",
+                    "representation": "Sev0",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "unknown",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Count",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            }
+          ],
+          "hierarchySettings": {
+            "treeType": 1,
+            "groupBy": [
+              "IPS Action"
+            ],
+            "expandTopLevel": true
+          },
+          "labelSettings": [
+            {
+              "columnId": "risk_s",
+              "label": "Risk"
+            },
+            {
+              "columnId": "insp_name_s",
+              "label": "Inspection"
+            }
+          ]
+        },
+        "sortBy": []
+      },
+      "name": "queryIDPSSummary"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where f5tenant_s == '{parmEnv}' or '{parmEnv}' == ''\r\n| where isnotempty(insp_id_s) \r\n| summarize count() by hostname_s, bin(TimeGenerated, {parmTimeRange:grain})",
+        "size": 0,
+        "title": "IDPS violations over Time Period",
+        "noDataMessage": "There were no Protocol Violations in the selected time period.",
+        "timeContextFromParameter": "parmTimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "linechart"
+      },
+      "name": "queryIDPSViolations"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where f5tenant_s == '{parmEnv}' or '{parmEnv}' == ''\r\n| where isnotempty(insp_id_s) \r\n| summarize Total_Attacks = count() by insp_name_s\r\n| sort by Total_Attacks",
+        "size": 1,
+        "title": "IDPS violations attacks",
+        "noDataMessage": "There were no Protocol Violations in the selected time period.",
+        "timeContextFromParameter": "parmTimeRange",
+        "exportFieldName": "insp_name_s",
+        "exportParameterName": "attack_type",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Total_Attacks",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "redBright"
+              }
+            }
+          ],
+          "filter": true,
+          "labelSettings": [
+            {
+              "columnId": "insp_name_s",
+              "label": "Inspection Name"
+            },
+            {
+              "columnId": "Total_Attacks",
+              "label": "Total Attacks"
+            }
+          ]
+        },
+        "sortBy": []
+      },
+      "customWidth": "50",
+      "name": "queryIDPSViolationAttacks"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where f5tenant_s == '{parmEnv}' or '{parmEnv}' == ''\r\n| where '{attack_type}' == insp_name_s or '{attack_type}' == \"All\"\r\n| where isnotempty(insp_name_s) \r\n| summarize Total_Attacks = count() by ['Attack Type'] = insp_name_s \r\n| sort by Total_Attacks",
+        "size": 1,
+        "title": "Total Attacks",
+        "noDataMessage": "There were no Protocol Violations in the selected time period.",
+        "timeContextFromParameter": "parmTimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "visualization": "piechart"
+      },
+      "customWidth": "50",
+      "name": "queryIDPSTotalAttacks"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "F5Telemetry_AFM_CL \r\n| where f5tenant_s == '{parmEnv}' or '{parmEnv}' == ''\r\n| where '{attack_type}' == insp_name_s or '{attack_type}' == \"All\"\r\n| where isnotempty(insp_id_s) \r\n| extend vs_array = split(virtual_server_name_s, '/')\r\n| project TimeGenerated, source_ip_s, action_s, risk_s ,hostname_s, Service = tostring(vs_array[-1]) , IPS_Profile = tostring(split(profile_name_s, '/')[-1]) \r\n| order by toint(risk_s) desc\r\n",
+        "size": 0,
+        "showAnalytics": true,
+        "title": "Attack summary",
+        "noDataMessage": "There were no Protocol Violations in the selected time period.",
+        "timeContextFromParameter": "parmTimeRange",
+        "showRefreshButton": true,
+        "showExportToExcel": true,
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "crossComponentResources": [
+          "{Workspace}"
+        ],
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "risk_s",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "low",
+                    "representation": "yellow",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "medium",
+                    "representation": "orange",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "high",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "lightBlue",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "violation_rating_s",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "greenRed"
+              }
+            }
+          ],
+          "filter": true,
+          "labelSettings": [
+            {
+              "columnId": "source_ip_s",
+              "label": "IP Client"
+            },
+            {
+              "columnId": "action_s",
+              "label": "IPS Action"
+            },
+            {
+              "columnId": "risk_s",
+              "label": "Risk"
+            },
+            {
+              "columnId": "hostname_s",
+              "label": "Hostname"
+            },
+            {
+              "columnId": "IPS_Profile",
+              "label": "IDPS Profile"
+            }
+          ]
+        }
+      },
+      "name": "queryIDPSSummary"
+    }
+  ],
+  "fromTemplateId": "sentinel-UserWorkbook",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
