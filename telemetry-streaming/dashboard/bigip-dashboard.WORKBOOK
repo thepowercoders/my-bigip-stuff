@@ -1,0 +1,1361 @@
+  {
+    "version": "Notebook/1.0",
+    "items": [
+      {
+        "type": 1,
+        "content": {
+          "json": "<h1><img src=\"https://www.f5.com/content/dam/f5/f5-logo.svg\" alt=\"F5 logo\" width=\"50\" height=\"60\" />\n&nbsp; F5 BIG-IP Dashboard</h1>\n\n---\nThe <strong>F5 BIG-IP</strong> is an Application Delivery and API Security Manager which provides a Network (AFM) and Web Application (ASM/WAF) firewall function as well as managing IDPS (Intrusion Detection and Prevention System) services, and DoS Protection for applications and APIs. It also provides DNS load balancing (DNS) and local traffic management (LTM) services.\n\nThe following workbook provides a dashboard showing status of key BIG-IP services using data sent by the BIG-IP devices into Azure Sentinel via Telemetry Streaming:\n\n* Global Traffic Management - status of Wide-IPs, GSLB Pools, and GSLB Pool Members\n* Local Traffic Management - HTTP traffic status, API Request Logging, LTM Pool Availability\n* TLS Certificates - lifetime status\n\nIt also scans all your subscriptions for BIG-IP Virtual Edition Virtual Machines, and informs of the status of Telemetry Streaming for the device.\n\n---\n"
+        },
+        "name": "text - 2"
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "crossComponentResources": [
+            "value::all"
+          ],
+          "parameters": [
+            {
+              "id": "cb5e40b4-020b-4f01-88a6-50e6225e2fb9",
+              "version": "KqlParameterItem/1.0",
+              "name": "DefaultSubscription_Internal",
+              "type": 1,
+              "isRequired": true,
+              "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| take 1\r\n| project subscriptionId",
+              "crossComponentResources": [
+                "value::selected"
+              ],
+              "isHiddenWhenLocked": true,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources"
+            },
+            {
+              "id": "20fb47ba-f521-47ea-9fb7-66339ad9c56a",
+              "version": "KqlParameterItem/1.0",
+              "name": "Subscription",
+              "type": 6,
+              "isRequired": true,
+              "multiSelect": true,
+              "quote": "'",
+              "delimiter": ",",
+              "query": "summarize by subscriptionId\r\n| project value = strcat(\"/subscriptions/\", subscriptionId), label = subscriptionId, selected = iff(subscriptionId =~ '{DefaultSubscription_Internal}', true, false)\r\n",
+              "crossComponentResources": [
+                "value::selected"
+              ],
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "value": []
+            },
+            {
+              "id": "50ed33e8-3c82-4f2d-8599-517bde7c3a18",
+              "version": "KqlParameterItem/1.0",
+              "name": "Workspace",
+              "type": 5,
+              "isRequired": true,
+              "multiSelect": true,
+              "quote": "'",
+              "delimiter": ",",
+              "query": "where type =~ 'microsoft.operationalinsights/workspaces'\r\n| project id",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "typeSettings": {
+                "resourceTypeFilter": {
+                  "microsoft.operationalinsights/workspaces": true
+                },
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "value": [],
+              "label": "LA Workspace(s)"
+            },
+            {
+              "id": "4898be51-7567-4865-a80f-809e4803e764",
+              "version": "KqlParameterItem/1.0",
+              "name": "allBIGIPSystems",
+              "type": 9,
+              "multiSelect": true,
+              "quote": "'",
+              "delimiter": ",",
+              "query": "Resources\r\n| where type == 'microsoft.compute/virtualmachines'\r\n| where properties.storageProfile.imageReference.publisher == 'f5-networks'\r\n| project name",
+              "crossComponentResources": [
+                "value::all"
+              ],
+              "isHiddenWhenLocked": true,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "value": []
+            },
+            {
+              "id": "97175dea-ff8d-432b-a6cb-6f64e6c36a50",
+              "version": "KqlParameterItem/1.0",
+              "name": "F5Telemetry_telemetryServiceInfo_CLMissing",
+              "type": 1,
+              "query": "let MissingTable = view () { print isMissing=1 };\r\nunion isfuzzy=true MissingTable, (F5Telemetry_telemetryServiceInfo_CL | getschema | summarize c=count() | project isMissing=iff(c > 0, 0, 1)) \r\n| top 1 by isMissing asc",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "isHiddenWhenLocked": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            }
+          ],
+          "style": "pills",
+          "queryType": 1,
+          "resourceType": "microsoft.resourcegraph/resources"
+        },
+        "customWidth": "100",
+        "name": "parmHeader"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "## Missing Telemetry Status Information\r\n\r\nThe table `F5Telemetry_telemetryServiceInfo_CL` is not found in the selected Workspace.\r\n\r\nTo visualize the metrics you need to [set up big-ip Telemetry Streaming application to send metrics and logs to your Log Analytics workspace](https://clouddocs.f5.com/products/extensions/f5-telemetry-streaming/latest/event-listener.html).",
+          "style": "upsell"
+        },
+        "conditionalVisibility": {
+          "parameterName": "F5Telemetry_telemetryServiceInfo_CLMissing",
+          "comparison": "isEqualTo",
+          "value": "1"
+        },
+        "name": "No F5Telemetry_telemetryServiceInfo_CL table"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "let data = F5Telemetry_telemetryServiceInfo_CL\r\n| where TimeGenerated > ago(30m)\r\n| order by TimeGenerated desc\r\n| summarize arg_max(TimeGenerated, *) by _ResourceId\r\n| extend hostname_s = tostring(split(_ResourceId, '/')[-1]);\r\ndata\r\n| summarize Count = count() by hostname_s\r\n| join kind = fullouter (datatable(hostname_s:string)[{allBIGIPSystems}]) on hostname_s\r\n| project hostname_s = iff(hostname_s == '', hostname_s1, hostname_s), Count = iff(hostname_s == '', 0, Count)\r\n| join kind = leftouter (data) on hostname_s\r\n| project-away hostname_s1\r\n| extend Status = strcat(TimeGenerated > ago(pollingInterval_d * 1s), \"/\", TimeGenerated > ago(pollingInterval_d * 2 * 1s))\r\n| project\r\nDevice = hostname_s,\r\nStatus,\r\n['Telemetry Updated'] = TimeGenerated,\r\n['Polling Interval'] = pollingInterval_d,\r\n['Last Poll Started'] = format_datetime(cycleStart_t, \"hh:mm:ss tt\"),\r\n['Last Poll Completed'] = format_datetime(cycleEnd_t, \"hh:mm:ss tt\"),\r\n['Time Taken (seconds)'] = datetime_diff('Second', cycleEnd_t, cycleStart_t)",
+          "size": 1,
+          "title": "Telemetry Streaming Status",
+          "noDataMessage": "No devices reported data in last 10 minutes",
+          "noDataMessageStyle": 4,
+          "timeContext": {
+            "durationMs": 86400000
+          },
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "table",
+          "gridSettings": {
+            "formatters": [
+              {
+                "columnMatch": "Status",
+                "formatter": 18,
+                "formatOptions": {
+                  "thresholdsOptions": "icons",
+                  "thresholdsGrid": [
+                    {
+                      "operator": "==",
+                      "thresholdValue": "True/True",
+                      "representation": "Available",
+                      "text": "Polling"
+                    },
+                    {
+                      "operator": "==",
+                      "thresholdValue": "False/True",
+                      "representation": "1",
+                      "text": "Processing"
+                    },
+                    {
+                      "operator": "==",
+                      "thresholdValue": "False/False",
+                      "representation": "3",
+                      "text": "Stopped"
+                    },
+                    {
+                      "operator": "Default",
+                      "thresholdValue": null,
+                      "representation": "2",
+                      "text": "No Logs"
+                    }
+                  ]
+                }
+              },
+              {
+                "columnMatch": "Telemetry Updated",
+                "formatter": 6
+              },
+              {
+                "columnMatch": "Last Poll Started",
+                "formatter": 6,
+                "dateFormat": {
+                  "showUtcTime": null,
+                  "formatName": "shortTimePattern"
+                }
+              },
+              {
+                "columnMatch": "Last Poll Completed",
+                "formatter": 6,
+                "dateFormat": {
+                  "showUtcTime": null,
+                  "formatName": "shortTimePattern"
+                }
+              }
+            ],
+            "sortBy": [
+              {
+                "itemKey": "Device",
+                "sortOrder": 1
+              }
+            ]
+          },
+          "sortBy": [
+            {
+              "itemKey": "Device",
+              "sortOrder": 1
+            }
+          ],
+          "tileSettings": {
+            "titleContent": {
+              "columnMatch": "Telemetry Updated"
+            },
+            "subtitleContent": {
+              "columnMatch": "Polling Interval"
+            },
+            "showBorder": false
+          }
+        },
+        "conditionalVisibility": {
+          "parameterName": "F5Telemetry_telemetryServiceInfo_CLMissing",
+          "comparison": "isNotEqualTo",
+          "value": "1"
+        },
+        "name": "query - 20",
+        "styleSettings": {
+          "showBorder": true
+        }
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "parameters": [
+            {
+              "id": "7ebdf60b-9045-4b4c-b911-95481cde554c",
+              "version": "KqlParameterItem/1.0",
+              "name": "ReportingDNSSystem",
+              "type": 1,
+              "isRequired": true,
+              "query": "F5Telemetry_deviceGroups_CL\r\n| where TimeGenerated > ago (2m)\r\n| where name_s == \"/Common/gtm\"\r\n| extend hostname_s = tostring(split(_ResourceId, '/')[-1])\r\n| extend priority_d = toint(split(hostname_s, '-')[-1])\r\n| distinct hostname_s, priority_d\r\n| top 1 by priority_d asc\r\n| project hostname_s",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "isHiddenWhenLocked": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces"
+            }
+          ],
+          "style": "pills",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces"
+        },
+        "customWidth": "100",
+        "name": "parmHeader - Copy"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "Telemetry Streaming Status is given for all VMs found in the selected subscription(s). GTM Information is derived from a priority list in the hidden parameter `ReportingDNSSystem` above this text, based on the VM number assigned in the hostname. To manually set a reporting DNS system, please edit the workbook and update this parameter.\r\n\r\nThe GTM information below is taken from the primary DNS system in the synchronisation group (as defined above). Where the primary system is not available, the next lower priority system is used to retrieve the data.\r\n\r\n> *The data currently being used for this report is from the following system* : **{ReportingDNSSystem}**",
+          "style": "info"
+        },
+        "conditionalVisibility": {
+          "parameterName": "F5Telemetry_telemetryServiceInfo_CLMissing",
+          "comparison": "isNotEqualTo",
+          "value": "1"
+        },
+        "name": "text - 24"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "\r\n\r\n---\r\nGlobal Traffic Management (GTM)\r\n---"
+        },
+        "name": "text - 12"
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "parameters": [
+            {
+              "id": "a6108e0b-1ef1-4f84-b95f-4826e8861ec0",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmFqdnDomain",
+              "label": "Domain",
+              "type": 2,
+              "query": "F5Telemetry_aWideIps_CL\r\n| where TimeGenerated > ago(2m) \r\n| extend wip = tostring(split(name_s, '/')[-1])\r\n| extend domain_s = substring(tostring(split(name_s, '/')[-1]),indexof(wip,\".\",0)+1,strlen(wip))\r\n| distinct domain_s",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "value": null
+            }
+          ],
+          "style": "pills",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces"
+        },
+        "name": "parameters - 6 - Copy"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_aWideIps_CL\r\n| union F5Telemetry_aaaaWideIps_CL\r\n| where TimeGenerated > ago(2m)\r\n| where _ResourceId endswith '{ReportingDNSSystem}'\r\n| extend UniqueRecordIdentifier = strcat(_ResourceId, \"_\", wipType_s, \"_\", name_s)\r\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier\r\n| extend fqdn = tostring(split(name_s, '/')[-1])\r\n| where '{parmFqdnDomain}' == '' or name_s endswith '{parmFqdnDomain}' \r\n| project \r\n    Service = strcat(tostring(split(fqdn, '.')[0]),' (',wipType_s,')'),\r\n    ['Full FQDN'] = fqdn,\r\n    Environment = toupper(split(fqdn, '.')[1]),\r\n    Domain = toupper(split(fqdn, '.')[2]),\r\n    Type = wipType_s,\r\n    Partition = strcat(partition_s,\"/\",subPath_s),\r\n    Status = strcat(status_availabilityState_s,\" (\",status_enabledState_s,\")\"),\r\n    Reason = status_statusReason_s,\r\n    TotalRequests = requests_d,\r\n    ResolvedRequests = resolutions_d,\r\n    Pools = pools_s,\r\n    UniqueRecordIdentifier\r\n",
+          "size": 3,
+          "title": "GSLB - Global Availability",
+          "timeContext": {
+            "durationMs": 86400000
+          },
+          "showRefreshButton": true,
+          "exportedParameters": [
+            {
+              "fieldName": "Pools",
+              "parameterName": "parmWipPools",
+              "defaultValue": "null"
+            },
+            {
+              "fieldName": "UniqueRecordIdentifier",
+              "parameterName": "parmURN",
+              "parameterType": 1,
+              "defaultValue": "null"
+            }
+          ],
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "tiles",
+          "tileSettings": {
+            "titleContent": {
+              "columnMatch": "Service",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "GenericDetails",
+                "linkIsContextBlade": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "percent"
+                },
+                "emptyValCustomText": "0"
+              }
+            },
+            "subtitleContent": {
+              "columnMatch": "Partition",
+              "formatter": 1
+            },
+            "leftContent": {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "available",
+                    "representation": "Available",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "startsWith",
+                    "thresholdValue": "offline",
+                    "representation": "3",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": null,
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            "secondaryContent": {
+              "columnMatch": "Reason"
+            },
+            "showBorder": true,
+            "sortCriteriaField": "Partition",
+            "sortOrderField": 1,
+            "size": "auto"
+          }
+        },
+        "name": "query - 3"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_aWideIps_CL\r\n| union F5Telemetry_aaaaWideIps_CL\r\n| where TimeGenerated > ago(2m)\r\n| where _ResourceId endswith '{ReportingDNSSystem}'\r\n| extend UniqueRecordIdentifier = strcat(_ResourceId, \"_\", wipType_s, \"_\", name_s)\r\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier \r\n| where UniqueRecordIdentifier == '{parmURN}'\r\n| extend fqdn = tostring(split(name_s, '/')[-1])\r\n| project\r\n    ['FQDN'] = fqdn,\r\n    ['DNS Type'] = wipType_s,\r\n    ['Pool Load Balancing Mode'] = poolLbMode_s,\r\n    ['TTL'] = ttlPersistence_d\r\n",
+          "size": 4,
+          "timeContext": {
+            "durationMs": 86400000
+          },
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "gridSettings": {
+            "formatters": [
+              {
+                "columnMatch": "FQDN",
+                "formatter": 1
+              }
+            ]
+          }
+        },
+        "conditionalVisibility": {
+          "parameterName": "parmURN",
+          "comparison": "isNotEqualTo",
+          "value": "null"
+        },
+        "name": "query - 19"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "To see GSLB Pool Members, click on any Wide IP service box above.",
+          "style": "info"
+        },
+        "name": "text - 4"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "let poolList = dynamic({parmWipPools});\r\nF5Telemetry_aPoolMembers_CL \r\n| union F5Telemetry_aaaaPoolMembers_CL \r\n| where TimeGenerated > ago(2m)\r\n| where poolName_s in~ (poolList)\r\n| extend Status = strcat(availabilityState_s, ' (', enabledState_s, \")\")\r\n| extend GroupState = iif(status_statusReason_s == 'Available', 'Active', 'Problem')\r\n| extend UniqueRecordIdentifier = strcat(serverName_s,poolName_s)\r\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier\r\n| extend Device = tostring(split(serverName_s, '/')[-1])\r\n| order by Device asc, poolName_s\r\n| join kind=inner (\r\n    F5Telemetry_aPools_CL\r\n    | union F5Telemetry_aaaaPools_CL \r\n    | where TimeGenerated > ago(2m)\r\n    | extend UniqueRecordIdentifier = strcat(_ResourceId,name_s)\r\n    | summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier\r\n    | where _ResourceId endswith '{ReportingDNSSystem}'\r\n    | project-away UniqueRecordIdentifier\r\n    ) on $left.poolName_s == $right.name_s\r\n| join kind=leftouter (\r\n    F5Telemetry_virtualServers_CL\r\n    | where TimeGenerated > ago(2m)\r\n    | extend UniqueRecordIdentifier = strcat(_ResourceId,name_s)\r\n    | summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier\r\n    | extend combState = strcat(availabilityState_s, ' (', enabledState_s, ')')\r\n    | extend vipStats = todynamic(pack(\r\n\t    \"Virtual Server\", name_s,\r\n\t    \"Status\", availabilityState_s,\r\n        \"Operational status\", enabledState_s,\r\n        \"Bits (In)\", clientside_bitsIn_d,\r\n        \"Bits (Out)\", clientside_bitsOut_d,\r\n\t    \"Packets (In)\", clientside_pktsIn_d,\r\n        \"Packets (Out)\", clientside_pktsOut_d,\r\n        \"Connections (Current)\", clientside_curConns_d,\r\n        \"Connections (Max)\", clientside_maxConns_d,\r\n        \"Connections (Total)\", clientside_totConns_d,\r\n        \"Requests (Total)\", totRequests_d\r\n        )\r\n    )\r\n    | project\r\n        VIP = name_s,\r\n        destination_s,\r\n        vipStats,\r\n        ['Bits (In)'] = clientside_bitsIn_d,\r\n        ['Bits (Out)'] = clientside_bitsOut_d,\r\n        ['Packets (In)'] = clientside_pktsIn_d,\r\n        ['Packets (Out)'] = clientside_pktsOut_d,\r\n        ['Connections (Current)'] = clientside_curConns_d,\r\n        ['Connections (Max)'] = clientside_maxConns_d,\r\n        ['Connections (Total)'] = clientside_totConns_d,\r\n        ['Requests (Total)'] = totRequests_d\r\n    ) on $left.vsName_s == $right.VIP\r\n| order by memberOrder_d asc\r\n| project\r\n    PoolType = poolType_s,\r\n    ['Load Balancing Mode - Preferred'] = loadBalancingMode_s,\r\n    ['Load Balancing Mode - Alternate'] = alternateMode_s,\r\n    ['Load Balancing Mode - Fallback'] = fallbackMode_s,\r\n    ['Member Order'] = memberOrder_d,\r\n    Status,\r\n    Pool = tostring(split(poolName_s, '/')[-1]),\r\n    Environment = strcat(f5tenant_s, \"/\", application_s),\r\n    Member = vsName_s,\r\n    ['Member Address'] = destination_s,\r\n    Ratio = ratio_d,\r\n    Reason = status_statusReason_s,\r\n    ['Server Name'] = Device,\r\n    Partition = f5tenant_s,\r\n    GroupState,\r\n    vipStats\r\n    \r\n",
+          "size": 1,
+          "title": "Pool Member Availability",
+          "showRefreshButton": true,
+          "showExportToExcel": true,
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "gridSettings": {
+            "formatters": [
+              {
+                "columnMatch": "PoolType",
+                "formatter": 5
+              },
+              {
+                "columnMatch": "Load Balancing Mode - Preferred",
+                "formatter": 5
+              },
+              {
+                "columnMatch": "Load Balancing Mode - Alternate",
+                "formatter": 5
+              },
+              {
+                "columnMatch": "Load Balancing Mode - Fallback",
+                "formatter": 5
+              },
+              {
+                "columnMatch": "Member",
+                "formatter": 1,
+                "formatOptions": {
+                  "linkColumn": "vipStats",
+                  "linkTarget": "CellDetails",
+                  "linkIsContextBlade": true
+                }
+              },
+              {
+                "columnMatch": "Status",
+                "formatter": 18,
+                "formatOptions": {
+                  "thresholdsOptions": "colors",
+                  "thresholdsGrid": [
+                    {
+                      "operator": "endsWith",
+                      "thresholdValue": "(disabled)",
+                      "representation": "blueDarkDark",
+                      "text": "{0}{1}"
+                    },
+                    {
+                      "operator": "startsWith",
+                      "thresholdValue": "available",
+                      "representation": "greenDark",
+                      "text": "{0}{1}"
+                    },
+                    {
+                      "operator": "startsWith",
+                      "thresholdValue": "offline",
+                      "representation": "redBright",
+                      "text": "{0}{1}"
+                    },
+                    {
+                      "operator": "Default",
+                      "thresholdValue": null,
+                      "representation": "gray",
+                      "text": "{0}{1}"
+                    }
+                  ]
+                }
+              },
+              {
+                "columnMatch": "Pool",
+                "formatter": 7,
+                "formatOptions": {
+                  "linkTarget": "GenericDetails",
+                  "linkIsContextBlade": true
+                }
+              },
+              {
+                "columnMatch": "Reason",
+                "formatter": 5
+              },
+              {
+                "columnMatch": "GroupState",
+                "formatter": 5
+              },
+              {
+                "columnMatch": "vipStats",
+                "formatter": 5
+              }
+            ],
+            "hierarchySettings": {
+              "treeType": 1,
+              "groupBy": [
+                "Pool"
+              ],
+              "expandTopLevel": true,
+              "finalBy": "GroupState"
+            }
+          },
+          "sortBy": []
+        },
+        "conditionalVisibility": {
+          "parameterName": "parmWipPools",
+          "comparison": "isNotEqualTo",
+          "value": "null"
+        },
+        "name": "query - 2",
+        "styleSettings": {
+          "showBorder": true
+        }
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "parameters": [
+            {
+              "id": "33e3d034-f646-4128-b400-b462692c6778",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmTime",
+              "label": "Timescale",
+              "type": 4,
+              "typeSettings": {
+                "selectableValues": [
+                  {
+                    "durationMs": 1800000
+                  },
+                  {
+                    "durationMs": 3600000
+                  },
+                  {
+                    "durationMs": 14400000
+                  },
+                  {
+                    "durationMs": 43200000
+                  },
+                  {
+                    "durationMs": 86400000
+                  },
+                  {
+                    "durationMs": 259200000
+                  },
+                  {
+                    "durationMs": 604800000
+                  },
+                  {
+                    "durationMs": 1209600000
+                  },
+                  {
+                    "durationMs": 2419200000
+                  },
+                  {
+                    "durationMs": 2592000000
+                  },
+                  {
+                    "durationMs": 5184000000
+                  },
+                  {
+                    "durationMs": 7776000000
+                  }
+                ]
+              },
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "value": {
+                "durationMs": 1800000
+              }
+            }
+          ],
+          "style": "pills",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces"
+        },
+        "name": "parameters - 26"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_aWideIps_CL\r\n| union F5Telemetry_aaaaWideIps_CL\r\n| where TimeGenerated {parmTime:value}\r\n| where '{parmFqdnDomain}' == '' or name_s endswith '{parmFqdnDomain}' \r\n| where _ResourceId endswith '{ReportingDNSSystem}'\r\n| extend Availability = case(status_availabilityState_s == \"available\", 1, status_availabilityState_s == \"offline\", 0, 0)\r\n| extend service = tostring(split(split(name_s, '/')[-1],'.')[0])\r\n| project \r\n    TimeGenerated,\r\n    service,\r\n    Availability",
+          "size": 0,
+          "aggregation": 2,
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "timechart",
+          "chartSettings": {
+            "xAxis": "TimeGenerated",
+            "showLegend": true
+          }
+        },
+        "name": "query - 25"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "\r\n\r\n---\r\nLocal Traffic Management\r\n---\r\n"
+        },
+        "name": "text - 13 - Copy"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "\r\n### HTTP Profile Flow Logs\r\n---"
+        },
+        "name": "text - 13 - Copy"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_httpProfiles_CL \r\n| where TimeGenerated > ago(10m)\r\n| summarize max(TimeGenerated) by name_s, postReqs_d, getReqs_d, maxKeepaliveReq_d, numberReqs_d, f5tenant_s, application_s\r\n| summarize POST = sum(postReqs_d), GET = sum(getReqs_d), ['Total Requests'] = sum(numberReqs_d), ['Max. Per Conn.'] = max(maxKeepaliveReq_d) by Tenant = f5tenant_s, Application = application_s, ['Profile Name'] = tostring(split(name_s, '/')[-1])\r\n",
+          "size": 1,
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "table",
+          "gridSettings": {
+            "formatters": [
+              {
+                "columnMatch": "POST",
+                "formatter": 4,
+                "formatOptions": {
+                  "palette": "purple"
+                }
+              },
+              {
+                "columnMatch": "GET",
+                "formatter": 4,
+                "formatOptions": {
+                  "palette": "purple"
+                }
+              },
+              {
+                "columnMatch": "Total Requests",
+                "formatter": 4,
+                "formatOptions": {
+                  "palette": "magenta",
+                  "customColumnWidthSetting": "174px"
+                }
+              }
+            ]
+          },
+          "tileSettings": {
+            "titleContent": {
+              "columnMatch": "Profile Name",
+              "formatter": 1
+            },
+            "leftContent": {
+              "columnMatch": "POST",
+              "formatter": 12,
+              "formatOptions": {
+                "palette": "auto"
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "maximumSignificantDigits": 3,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            "rightContent": {
+              "columnMatch": "GET"
+            },
+            "secondaryContent": {
+              "columnMatch": "Total Requests"
+            },
+            "showBorder": false
+          }
+        },
+        "name": "query - 22"
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "parameters": [
+            {
+              "id": "9257d767-137a-4d8b-a8d0-332289bb2198",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmEnv",
+              "label": "Tenant",
+              "type": 2,
+              "query": "F5Telemetry_virtualServers_CL\r\n| where TimeGenerated > ago(2m)\r\n| distinct f5tenant_s",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "timeContext": {
+                "durationMs": 1800000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "value": null
+            }
+          ],
+          "style": "pills",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces"
+        },
+        "name": "parameters - 6 - Copy - Copy"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "\r\n### LTM - API Request Logging\r\n---"
+        },
+        "name": "text - 13"
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "parameters": [
+            {
+              "id": "7feb105a-a2f3-4283-aa13-c6596082403e",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmReqLogTR",
+              "label": "Time Range",
+              "type": 4,
+              "isRequired": true,
+              "typeSettings": {
+                "selectableValues": [
+                  {
+                    "durationMs": 300000
+                  },
+                  {
+                    "durationMs": 900000
+                  },
+                  {
+                    "durationMs": 1800000
+                  },
+                  {
+                    "durationMs": 3600000
+                  },
+                  {
+                    "durationMs": 14400000
+                  },
+                  {
+                    "durationMs": 43200000
+                  },
+                  {
+                    "durationMs": 86400000
+                  },
+                  {
+                    "durationMs": 172800000
+                  },
+                  {
+                    "durationMs": 259200000
+                  },
+                  {
+                    "durationMs": 604800000
+                  },
+                  {
+                    "durationMs": 1209600000
+                  },
+                  {
+                    "durationMs": 2419200000
+                  },
+                  {
+                    "durationMs": 2592000000
+                  },
+                  {
+                    "durationMs": 5184000000
+                  },
+                  {
+                    "durationMs": 7776000000
+                  }
+                ]
+              },
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "value": {
+                "durationMs": 300000
+              }
+            },
+            {
+              "id": "26d7261b-4e43-47a5-bd70-01476993ae80",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmClientIP",
+              "label": "Client IP",
+              "type": 2,
+              "query": "F5Telemetry_LTM_CL \r\n| where event_source_s == \"request_logging\"\r\n| where f5tenant_s == '{parmEnv}'\r\n| distinct  client_ip_s",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "parmReqLogTR",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "value": null
+            },
+            {
+              "id": "530208c7-0f66-4d8a-87be-80ff680ddf38",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmInt",
+              "label": "Interval",
+              "type": 2,
+              "isRequired": true,
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "jsonData": "[\r\n\t{\r\n        \"value\": \"5m\",\r\n\t    \"label\": \"5 minutes\"\r\n    },\r\n\t{\r\n        \"value\": \"15m\",\r\n\t    \"label\": \"15 minutes\",\r\n        \"selected\": true\r\n    },\r\n\t{\r\n        \"value\": \"1h\",\r\n\t    \"label\": \"1 hour\"\r\n    }\r\n]",
+              "timeContext": {
+                "durationMs": 2419200000
+              },
+              "timeContextFromParameter": "parmReqLogTR"
+            },
+            {
+              "id": "e33b8f8b-9e5a-48b8-8c36-1a7376a31aee",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmService",
+              "label": "Application",
+              "type": 2,
+              "query": "F5Telemetry_LTM_CL \r\n| where event_source_s == \"request_logging\"\r\n| where f5tenant_s == '{parmEnv}'\r\n| distinct application_s",
+              "crossComponentResources": [
+                "{Workspace}"
+              ],
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "timeContext": {
+                "durationMs": 0
+              },
+              "timeContextFromParameter": "parmReqLogTR",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "value": null
+            }
+          ],
+          "style": "pills",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces"
+        },
+        "name": "parameters - 6"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_LTM_CL \r\n| where TimeGenerated {parmReqLogTR:value}\r\n| where event_source_s == \"request_logging\"\r\n| where '{parmClientIP}' == '' or '{parmClientIP}' == client_ip_s\r\n| where '{parmEnv}' == '' or '{parmEnv}' == f5tenant_s\r\n| where '{parmService}' == '' or '{parmService}' == application_s\r\n| summarize RequestCount = count() by bin(TimeGenerated, {parmInt}), http_uri_s\r\n| project TimeGenerated, Endpoint = http_uri_s, RequestCount",
+          "size": 0,
+          "title": "Requests Logged per Endpoint",
+          "timeContextFromParameter": "parmReqLogTR",
+          "timeBrushParameterName": "parmReqLogTR",
+          "timeBrushExportOnlyWhenBrushed": true,
+          "showRefreshButton": true,
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "linechart"
+        },
+        "name": "query - 5"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_LTM_CL \r\n| where event_source_s == \"request_logging\"\r\n| where '{parmClientIP}' == '' or '{parmClientIP}' == client_ip_s\r\n| where '{parmEnv}' == '' or '{parmEnv}' == f5tenant_s\r\n| where '{parmService}' == '' or '{parmService}' == application_s\r\n| extend Endpoint = iff(http_uri_s contains \"cspMan\",tostring(split(http_uri_s, '/')[-2]), tostring(split(http_uri_s, '/')[-1]))\r\n| summarize Count = count() by [''] = Endpoint\r\n| order by Count",
+          "size": 2,
+          "aggregation": 4,
+          "title": "API Request Message Volumes",
+          "timeContextFromParameter": "parmReqLogTR",
+          "exportFieldName": "series",
+          "exportParameterName": "parmAPIReq",
+          "exportDefaultValue": "xx_null",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "piechart",
+          "sortBy": [],
+          "tileSettings": {
+            "titleContent": {
+              "columnMatch": "http_uri_s",
+              "formatter": 10,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            "leftContent": {
+              "columnMatch": "avg_response_ms_s",
+              "formatter": 12,
+              "formatOptions": {
+                "palette": "auto"
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 2,
+                  "maximumSignificantDigits": 3
+                }
+              }
+            },
+            "showBorder": false,
+            "size": "auto"
+          },
+          "chartSettings": {
+            "ySettings": {
+              "max": 1000
+            }
+          },
+          "mapSettings": {
+            "locInfo": "LatLong",
+            "sizeSettings": "response_ms_s",
+            "sizeAggregation": "Sum",
+            "legendMetric": "response_ms_s",
+            "legendAggregation": "Sum",
+            "itemColorSettings": {
+              "type": "heatmap",
+              "colorAggregation": "Sum",
+              "nodeColorField": "response_ms_s",
+              "heatmapPalette": "greenRed"
+            }
+          }
+        },
+        "customWidth": "50",
+        "name": "query - 9"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_LTM_CL \r\n| where event_source_s == \"response_logging\"\r\n| where '{parmClientIP}' == '' or '{parmClientIP}' == client_ip_s\r\n| where '{parmEnv}' == '' or '{parmEnv}' == f5tenant_s\r\n| where '{parmService}' == '' or '{parmService}' == application_s\r\n| summarize Count = count() by ['Status Code'] = http_status_s\r\n| order by Count\r\n\r\n",
+          "size": 2,
+          "aggregation": 4,
+          "title": "API Response Values",
+          "timeContextFromParameter": "parmReqLogTR",
+          "exportFieldName": "series",
+          "exportParameterName": "parmRespCode",
+          "exportDefaultValue": "xx_null",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "piechart",
+          "sortBy": [],
+          "tileSettings": {
+            "titleContent": {
+              "columnMatch": "http_uri_s",
+              "formatter": 10,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            "leftContent": {
+              "columnMatch": "avg_response_ms_s",
+              "formatter": 12,
+              "formatOptions": {
+                "palette": "auto"
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 2,
+                  "maximumSignificantDigits": 3
+                }
+              }
+            },
+            "showBorder": false,
+            "size": "auto"
+          },
+          "chartSettings": {
+            "ySettings": {
+              "max": 1000
+            }
+          },
+          "mapSettings": {
+            "locInfo": "LatLong",
+            "sizeSettings": "response_ms_s",
+            "sizeAggregation": "Sum",
+            "legendMetric": "response_ms_s",
+            "legendAggregation": "Sum",
+            "itemColorSettings": {
+              "type": "heatmap",
+              "colorAggregation": "Sum",
+              "nodeColorField": "response_ms_s",
+              "heatmapPalette": "greenRed"
+            }
+          }
+        },
+        "customWidth": "50",
+        "name": "query - 9 - Copy"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "You can add click on items in either pie-chart to filter the results below.",
+          "style": "info"
+        },
+        "name": "text - 11"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_LTM_CL \r\n| where TimeGenerated {parmReqLogTR}\r\n| where event_source_s == \"request_logging\"\r\n| where '{parmClientIP}' == '' or '{parmClientIP}' == client_ip_s\r\n| where '{parmEnv}' == '' or f5tenant_s == '{parmEnv}'\r\n| where '{parmService}' == '' or '{parmService}' == application_s\r\n| join kind=leftouter (\r\n    F5Telemetry_LTM_CL\r\n    | where TimeGenerated {parmReqLogTR}\r\n    | where event_source_s == \"response_logging\"\r\n    | where '{parmClientIP}' == '' or '{parmClientIP}' == client_ip_s\r\n    | where '{parmEnv}' == '' or f5tenant_s == '{parmEnv}'\r\n    | where '{parmService}' == '' or '{parmService}' == application_s\r\n    | where '{parmAPIReq}' == 'xx_null' or '{parmAPIReq}' == http_uri_s\r\n    )\r\non $left.Microtimestamp_s == $right.Microtimestamp_s\r\n| where '{parmAPIReq}' == 'xx_null' or '{parmAPIReq}' == http_uri_s\r\n| where '{parmRespCode}' == 'xx_null' or '{parmRespCode}' == http_status_s1\r\n| extend Endpoint = iff(http_uri_s contains \"cspMan\",tostring(split(http_uri_s, '/')[-2]), tostring(split(http_uri_s, '/')[-1]))\r\n| sort by TimeGenerated desc\r\n| project\r\n    TimeGenerated,\r\n    Client = client_ip_s,\r\n    Method = http_method_s,\r\n    Endpoint,\r\n    ['Virtual IP'] = dest_ip_s,\r\n    ['Port'] = dest_port_s,\r\n    ['Endpoint IP'] = server_ip_s1,\r\n    Environment = f5tenant_s1,\r\n    Application = application_s,\r\n    ['Virtual Server'] = tostring(split(virtual_name_s, '/')[-1]),\r\n    ['Status Code'] = http_status_s1,\r\n    ['SRT (ms)'] = response_ms_s1,\r\n    ['Full URI'] = http_uri_s",
+          "size": 0,
+          "showAnalytics": true,
+          "title": "Request/Response Logs",
+          "showExportToExcel": true,
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "table",
+          "gridSettings": {
+            "formatters": [
+              {
+                "columnMatch": "Status Code",
+                "formatter": 18,
+                "formatOptions": {
+                  "thresholdsOptions": "icons",
+                  "thresholdsGrid": [
+                    {
+                      "operator": "startsWith",
+                      "thresholdValue": "200",
+                      "representation": "dot-green",
+                      "text": "{0}{1}"
+                    },
+                    {
+                      "operator": "startsWith",
+                      "thresholdValue": "40",
+                      "representation": "dot-redBright",
+                      "text": "{0}{1}"
+                    },
+                    {
+                      "operator": "Default",
+                      "thresholdValue": null,
+                      "representation": "dot-orange",
+                      "text": "{0}{1}"
+                    }
+                  ]
+                }
+              },
+              {
+                "columnMatch": "SRT (ms)",
+                "formatter": 8,
+                "formatOptions": {
+                  "palette": "yellowOrangeRed"
+                }
+              },
+              {
+                "columnMatch": "HTTP URI",
+                "formatter": 5
+              }
+            ],
+            "rowLimit": 500
+          },
+          "sortBy": []
+        },
+        "name": "query - 7"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "\r\n\r\n---\r\nLTM Other Data\r\n---"
+        },
+        "name": "text - 14"
+      },
+      {
+        "type": 1,
+        "content": {
+          "json": "### Pool Member Availability"
+        },
+        "name": "text - 17"
+      },
+      {
+        "type": 9,
+        "content": {
+          "version": "KqlParameterItem/1.0",
+          "parameters": [
+            {
+              "id": "7b7c0712-bb56-4166-be5e-df0bc31e6310",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmApp",
+              "label": "Application",
+              "type": 2,
+              "query": "F5Telemetry_poolMembers_CL \r\n// poolMembers table does not include f5tenant_s field even if you add the tenant tag in telemetry - so we have to pull the tenant from the pool Name:\r\n| where poolName_s !contains \"telemetry\"\r\n| extend Tenant = tostring(split(poolName_s,'/')[1])\r\n| distinct Application = tostring(split(poolName_s,'/')[2])",
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "timeContext": {
+                "durationMs": 1800000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "value": null
+            },
+            {
+              "id": "2f80ed54-21cc-474f-8a61-e05f809ba2fa",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmPool",
+              "label": "Pool",
+              "type": 2,
+              "query": "F5Telemetry_poolMembers_CL \r\n| where poolName_s !contains \"telemetry\"\r\n| extend env = tostring(split(poolName_s,'/')[1])\r\n| where '{parmEnv:value}' == '' or env == '{parmEnv:value}'\r\n| extend app = tostring(split(poolName_s,'/')[2])\r\n| where app == '' or app == '{parmApp:value}'\r\n| distinct ['Server Pool'] = tostring(split(poolName_s,'/')[3])",
+              "typeSettings": {
+                "additionalResourceOptions": [],
+                "showDefault": false
+              },
+              "timeContext": {
+                "durationMs": 1800000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "value": null
+            },
+            {
+              "id": "fbebae41-f8e1-4c20-bff8-705775bf4b34",
+              "version": "KqlParameterItem/1.0",
+              "name": "parmTimePeriod",
+              "label": "Time Period",
+              "type": 4,
+              "typeSettings": {
+                "selectableValues": [
+                  {
+                    "durationMs": 900000
+                  },
+                  {
+                    "durationMs": 1800000
+                  },
+                  {
+                    "durationMs": 3600000
+                  },
+                  {
+                    "durationMs": 14400000
+                  },
+                  {
+                    "durationMs": 43200000
+                  },
+                  {
+                    "durationMs": 86400000
+                  },
+                  {
+                    "durationMs": 259200000
+                  },
+                  {
+                    "durationMs": 604800000
+                  },
+                  {
+                    "durationMs": 2592000000
+                  },
+                  {
+                    "durationMs": 5184000000
+                  },
+                  {
+                    "durationMs": 7776000000
+                  }
+                ]
+              },
+              "value": {
+                "durationMs": 86400000
+              }
+            }
+          ],
+          "style": "pills",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces"
+        },
+        "name": "parameters - 16"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_poolMembers_CL \r\n| where poolName_s == '' or poolName_s has \"{parmPool}\"\r\n| extend StatusNumeric = iff((monitorStatus_s == \"down\" or enabledState_s != \"enabled\"), 0, 1)\r\n| summarize avg(StatusNumeric) by addr_s, bin(TimeGenerated, {parmTimePeriod:grain} )\r\n| extend avg_StatusNumeric = avg_StatusNumeric\r\n| project TimeGenerated, addr_s, avg_StatusNumeric\r\n| render timechart\r\n",
+          "size": 0,
+          "aggregation": 2,
+          "timeContextFromParameter": "parmTimePeriod",
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "timechart"
+        },
+        "name": "query - 15"
+      },
+      {
+        "type": 3,
+        "content": {
+          "version": "KqlItem/1.0",
+          "query": "F5Telemetry_sslCerts_CL \n| where name_s != \"default.crt\"\n| extend UniqueRecordIdentifier = strcat(_ResourceId, \"_\", name_s)\n| summarize arg_max(TimeGenerated, *) by UniqueRecordIdentifier \n| extend VMName = tostring(split(_ResourceId, '/')[8])\n| extend ExpiryDateTime = todatetime(expirationString_t)\n| extend DaysBeforeExpiry = abs(datetime_diff('day', now(), ExpiryDateTime))\n| sort by VMName\n| project\n    VMName,\n    Name = name_s,\n    Subject = subject_s,\n    Issuer = issuer_s,\n    Expiry = expirationString_t,\n    DaysBeforeExpiry\n",
+          "size": 0,
+          "title": "Traffic Management Certificates",
+          "timeContext": {
+            "durationMs": 86400000
+          },
+          "showExportToExcel": true,
+          "queryType": 0,
+          "resourceType": "microsoft.operationalinsights/workspaces",
+          "crossComponentResources": [
+            "{Workspace}"
+          ],
+          "visualization": "tiles",
+          "gridSettings": {
+            "filter": true,
+            "sortBy": [
+              {
+                "itemKey": "expirationString_t",
+                "sortOrder": 2
+              }
+            ],
+            "labelSettings": [
+              {
+                "columnId": "VMName",
+                "label": "F5 BIG-IP Device"
+              },
+              {
+                "columnId": "name_s",
+                "label": "Certificate Name"
+              },
+              {
+                "columnId": "issuer_s",
+                "label": "Issuer"
+              },
+              {
+                "columnId": "expirationString_t",
+                "label": "Expiry Date"
+              }
+            ]
+          },
+          "sortBy": [
+            {
+              "itemKey": "expirationString_t",
+              "sortOrder": 2
+            }
+          ],
+          "tileSettings": {
+            "titleContent": {
+              "columnMatch": "Name",
+              "formatter": 7,
+              "formatOptions": {
+                "linkTarget": "GenericDetails",
+                "linkIsContextBlade": true
+              }
+            },
+            "subtitleContent": {
+              "columnMatch": "VMName"
+            },
+            "leftContent": {
+              "columnMatch": "Expiry",
+              "formatter": 6,
+              "dateFormat": {
+                "showUtcTime": true,
+                "formatName": "shortDatePattern"
+              }
+            },
+            "secondaryContent": {
+              "columnMatch": "DaysBeforeExpiry",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 7,
+                "max": 365,
+                "palette": "hotCold"
+              },
+              "numberFormat": {
+                "unit": 27,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            "showBorder": true,
+            "size": "auto"
+          }
+        },
+        "name": "kq-deviceCerts"
+      }
+    ],
+    "fromTemplateId": "sentinel-UserWorkbook",
+    "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+  }
