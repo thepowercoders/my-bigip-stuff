@@ -124,7 +124,7 @@ event_source="response_logging",hostname="$BIGIP_HOSTNAME",client_ip="$CLIENT_IP
 
 The request log time chart plots all API requests (effectively, all URIs which are recorded in the $HTTP_URI field above). The chart can be brushed to zoom in on particular data. When brushed, the proceeding pie-charts showing Message Volumes and HTTP Response Codes, and the log table are adjusted to the brushed time period only.
 
-![API Request Time Chart](/images/afm_slice.png)
+![API Request Time Chart](/images/dash_apiReqs.png)
 
 The Request/Response Log table combines both the request and response into a single log and shows the server response time (SRT) for the request. To ensure it correctly links the 2 logs, it uses the *Microtimestamp* field which holds the request-time fraction in microseconds. As this is a millionth of a second, it is highly unlikely you would get 2 requests at the same time which would confuse the *join* function being used in the log query.
 
